@@ -5,7 +5,6 @@ summary: Classic Minesweeper for Linux
 description: |
   LinMine is a Linux port of the classic Minesweeper game.
   It uses the original bitmap assets and provides the familiar Minesweeper gameplay.
-
 grade: stable
 confinement: strict
 
