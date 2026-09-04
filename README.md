@@ -4,7 +4,7 @@ Minesweeper port to Linux.
 
 ## Linux build
 
-The current Linux executable uses SDL2 for the window, input, and 2D rendering. SDL2's BMP loader is used for the original bitmap assets. citeturn0search0turn0search1
+The current Linux executable uses SDL2 for the window, input, and 2D rendering. SDL2's BMP loader is used for the original bitmap assets.
 
 ### Dependencies
 
