@@ -180,14 +180,9 @@ void lm_graphics_draw_sprite(LMSpriteSheet sheet, int index, int x, int y,
         !lm_sheets[sheet] || index < 0 || index >= counts[sheet])
         return;
 
-    /*
-     * The NT4 resources are vertical strips, not horizontal strips.
-     * They are also stored as bottom-up BMP data. SDL_LoadBMP converts
-     * that into a top-down surface, so logical resource index 0 is at
-     * the bottom of the SDL texture.
-     */
+    /* All WinMine sprite sheets are vertical strips. */
     src.x = 0;
-    src.y = (counts[sheet] - 1 - index) * heights[sheet];
+    src.y = index * heights[sheet];
     src.w = widths[sheet];
     src.h = heights[sheet];
 
