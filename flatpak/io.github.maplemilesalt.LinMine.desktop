@@ -2,6 +2,7 @@
 Name=LinMine
 Comment=Classic Minesweeper for Linux
 Exec=linmine-flatpak
+Icon=io.github.maplemilesalt.LinMine
 Terminal=false
 Type=Application
 Categories=Game;BoardGame;
