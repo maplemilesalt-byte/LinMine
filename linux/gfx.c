@@ -3,7 +3,6 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
 #include <stdio.h>
-#include <string.h>
 
 #define LM_SHEET_COUNT 3
 #define LM_BLOCK_W 16
@@ -133,6 +132,11 @@ void lm_graphics_shutdown(void)
     lm_window = NULL;
     TTF_Quit();
     SDL_Quit();
+}
+
+void lm_graphics_request_close(void)
+{
+    lm_closed = 1;
 }
 
 int lm_graphics_load_assets(const char *dir, int color)
@@ -302,12 +306,6 @@ int lm_graphics_poll_event(LMInputButton *button, LMPoint *position, int *presse
             }
         }
     }
-    return 0;
-}
-
-int lm_graphics_poll_key(int *key)
-{
-    (void)key;
     return 0;
 }
 
