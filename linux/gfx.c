@@ -1,5 +1,4 @@
 #include "gfx.h"
-
 #include <cairo.h>
 #include <gdk-pixbuf/gdk-pixbuf.h>
 #include <stdio.h>
@@ -13,6 +12,7 @@
 #define LM_LED_COUNT 12
 #define LM_BUTTON_W 24
 #define LM_BUTTON_H 24
+#define LM_BUTTON_COUNT 5
 
 static GtkWidget *lm_window;
 static GtkWidget *lm_drawing_area;
@@ -162,9 +162,15 @@ void lm_graphics_draw_rect(cairo_t *cr, LMRect rect, unsigned int pixel)
 void lm_graphics_draw_sprite(cairo_t *cr, LMSpriteSheet sheet, int index,
                              int x, int y, int width, int height)
 {
-    static const int widths[LM_SHEET_COUNT] = { LM_BLOCK_W, LM_LED_W, LM_BUTTON_W };
-    static const int heights[LM_SHEET_COUNT] = { LM_BLOCK_H, LM_LED_H, LM_BUTTON_H };
-    static const int counts[LM_SHEET_COUNT] = { LM_BLOCK_COUNT, LM_LED_COUNT, LM_BUTTON_COUNT };
+    static const int widths[LM_SHEET_COUNT] = {
+        LM_BLOCK_W, LM_LED_W, LM_BUTTON_W
+    };
+    static const int heights[LM_SHEET_COUNT] = {
+        LM_BLOCK_H, LM_LED_H, LM_BUTTON_H
+    };
+    static const int counts[LM_SHEET_COUNT] = {
+        LM_BLOCK_COUNT, LM_LED_COUNT, LM_BUTTON_COUNT
+    };
     GdkPixbuf *pixbuf;
     int src_y;
     double sx, sy;
