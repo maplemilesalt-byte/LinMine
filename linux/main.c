@@ -19,7 +19,7 @@
 #define WIDTH (GRID_X + COLS * TILE + 12)
 #define HEIGHT (GRID_Y + ROWS * TILE + 12)
 
-/* Block sprites, in the exact order of winmine/bmp/blocks.bmp. */
+/* Block sprites, in the exact order supplied for blocks.bmp. */
 #define BLOCK_COVERED 0
 #define BLOCK_FLAG 1
 #define BLOCK_QUESTION_COVERED 2
@@ -37,10 +37,12 @@
 #define BLOCK_1 14
 #define BLOCK_OPEN_0 15
 
-#define BUTTON_NORMAL 0
-#define BUTTON_PRESSED 1
+/* Face sprites, in the exact order supplied for button.bmp. */
+#define BUTTON_HAPPY_CLICKED 0
+#define BUTTON_SUNGLASSES 1
 #define BUTTON_DEAD 2
-#define BUTTON_WIN 3
+#define BUTTON_SURPRISED 3
+#define BUTTON_NORMAL 4
 
 #define LED_NEGATIVE 10
 
@@ -56,6 +58,7 @@ static int game_over;
 static int won;
 static int remaining;
 static int flags;
+static int face_pressed;
 static time_t start_time;
 
 static int block_sprite_for_number(int number)
@@ -98,6 +101,7 @@ static void reset_game(void)
     won = 0;
     flags = 0;
     remaining = ROWS * COLS - MINES;
+    face_pressed = 0;
     start_time = time(NULL);
 }
 
@@ -172,7 +176,14 @@ static void draw(void)
 {
     int x, y;
     int elapsed = (int)(time(NULL) - start_time);
-    int face = game_over ? (won ? BUTTON_WIN : BUTTON_DEAD) : BUTTON_NORMAL;
+    int face;
+
+    if (game_over)
+        face = won ? BUTTON_SUNGLASSES : BUTTON_DEAD;
+    else if (face_pressed)
+        face = BUTTON_HAPPY_CLICKED;
+    else
+        face = BUTTON_NORMAL;
 
     /* Classic WinMine gray background. */
     lm_graphics_clear(0xffc0c0c0u);
@@ -224,6 +235,13 @@ static void draw(void)
     lm_graphics_present();
 }
 
+static int face_hit(int x, int y)
+{
+    int fx = (WIDTH - BUTTON_W) / 2;
+    return y >= TOP_LED_Y && y < TOP_LED_Y + BUTTON_H &&
+           x >= fx && x < fx + BUTTON_W;
+}
+
 int main(void)
 {
     LMInputButton button;
@@ -249,14 +267,24 @@ int main(void)
             lm_graphics_delay(16);
             continue;
         }
+
+        if (face_hit(pos.x, pos.y)) {
+            if (pressed && button == LM_BUTTON_LEFT) {
+                face_pressed = 1;
+                draw();
+            } else if (!pressed && button == LM_BUTTON_LEFT) {
+                if (face_pressed)
+                    reset_game();
+                face_pressed = 0;
+                draw();
+            }
+            continue;
+        }
+
         if (!pressed)
             continue;
 
-        if (pos.y >= TOP_LED_Y && pos.y < TOP_LED_Y + BUTTON_H &&
-            pos.x >= (WIDTH - BUTTON_W) / 2 &&
-            pos.x < (WIDTH - BUTTON_W) / 2 + BUTTON_W) {
-            reset_game();
-        } else if (pos.y >= GRID_Y && pos.x >= GRID_X) {
+        if (pos.y >= GRID_Y && pos.x >= GRID_X) {
             int x = (pos.x - GRID_X) / TILE;
             int y = (pos.y - GRID_Y) / TILE;
             if (button == LM_BUTTON_LEFT)
