@@ -1,22 +1,24 @@
 #include "gfx.h"
 
+#include <gtk/gtk.h>
+#include <cairo.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <time.h>
 
 #define COLS 9
 #define ROWS 9
 #define MINES 10
 
-/* Native WinMine layout, including its menu bar. */
+/* Native WinMine layout inside the drawing area. */
 #define TILE 16
 #define LED_W 13
 #define LED_H 23
 #define BUTTON_W 24
 #define BUTTON_H 24
-#define MENU_H 18
 #define GRID_X 12
-#define GRID_Y 73
-#define TOP_LED_Y 34
+#define GRID_Y 55
+#define TOP_LED_Y 16
 #define WIDTH (GRID_X + COLS * TILE + 12)
 #define HEIGHT (GRID_Y + ROWS * TILE + 12)
 
@@ -59,17 +61,10 @@
 #define LED_1 10
 #define LED_0 11
 
-/* Original menu.inc structure. */
-enum MenuId {
-    MENU_NONE,
-    MENU_GAME,
-    MENU_HELP
-};
-
 typedef struct Cell {
     unsigned char mine;
     unsigned char open;
-    unsigned char flag;
+    unsigned char state; /* 0 covered, 1 flag, 2 question */
     unsigned char number;
 } Cell;
 
@@ -79,7 +74,7 @@ static int won;
 static int remaining;
 static int flags;
 static int face_pressed;
-static int menu_open;
+static int marks_enabled = 1;
 static time_t start_time;
 
 static int block_sprite_for_number(int number)
@@ -103,7 +98,7 @@ static void reset_game(void)
 
     for (y = 0; y < ROWS; ++y)
         for (x = 0; x < COLS; ++x)
-            board[y][x].mine = board[y][x].open = board[y][x].flag = board[y][x].number = 0;
+            board[y][x].mine = board[y][x].open = board[y][x].state = board[y][x].number = 0;
 
     while (mines < MINES) {
         x = rand() % COLS;
@@ -116,7 +111,8 @@ static void reset_game(void)
 
     for (y = 0; y < ROWS; ++y) {
         for (x = 0; x < COLS; ++x) {
-            if (board[y][x].mine) continue;
+            if (board[y][x].mine)
+                continue;
             for (ny = y - 1; ny <= y + 1; ++ny)
                 for (nx = x - 1; nx <= x + 1; ++nx)
                     if (nx >= 0 && nx < COLS && ny >= 0 && ny < ROWS && board[ny][nx].mine)
@@ -129,7 +125,6 @@ static void reset_game(void)
     flags = 0;
     remaining = ROWS * COLS - MINES;
     face_pressed = 0;
-    menu_open = MENU_NONE;
     start_time = time(NULL);
 }
 
@@ -138,7 +133,7 @@ static void open_cell(int x, int y)
     int nx, ny;
 
     if (x < 0 || x >= COLS || y < 0 || y >= ROWS || game_over ||
-        board[y][x].open || board[y][x].flag)
+        board[y][x].open || board[y][x].state != 0)
         return;
 
     board[y][x].open = 1;
@@ -160,21 +155,36 @@ static void open_cell(int x, int y)
                 open_cell(nx, ny);
 }
 
-static void toggle_flag(int x, int y)
+static void toggle_mark(int x, int y)
 {
+    Cell *c;
+
     if (x < 0 || x >= COLS || y < 0 || y >= ROWS || game_over || board[y][x].open)
         return;
 
-    if (board[y][x].flag) {
-        board[y][x].flag = 0;
-        --flags;
+    c = &board[y][x];
+    if (marks_enabled) {
+        if (c->state == 0) {
+            c->state = 1;
+            ++flags;
+        } else if (c->state == 1) {
+            c->state = 2;
+            --flags;
+        } else {
+            c->state = 0;
+        }
     } else {
-        board[y][x].flag = 1;
-        ++flags;
+        if (c->state == 1) {
+            c->state = 0;
+            --flags;
+        } else if (c->state == 0) {
+            c->state = 1;
+            ++flags;
+        }
     }
 }
 
-static void draw_led_number(int x, int value)
+static void draw_led_number(cairo_t *cr, int x, int value)
 {
     int hundreds, tens, ones;
 
@@ -186,111 +196,31 @@ static void draw_led_number(int x, int value)
     tens = (value / 10) % 10;
     ones = value % 10;
 
-    lm_graphics_draw_sprite(LM_SHEET_LED, led_sprite_for_digit(hundreds),
+    lm_graphics_draw_sprite(cr, LM_SHEET_LED, led_sprite_for_digit(hundreds),
                             x, TOP_LED_Y, LED_W, LED_H);
-    lm_graphics_draw_sprite(LM_SHEET_LED, led_sprite_for_digit(tens),
+    lm_graphics_draw_sprite(cr, LM_SHEET_LED, led_sprite_for_digit(tens),
                             x + LED_W, TOP_LED_Y, LED_W, LED_H);
-    lm_graphics_draw_sprite(LM_SHEET_LED, led_sprite_for_digit(ones),
+    lm_graphics_draw_sprite(cr, LM_SHEET_LED, led_sprite_for_digit(ones),
                             x + LED_W * 2, TOP_LED_Y, LED_W, LED_H);
 }
 
-static void draw_border(LMRect r, unsigned int outer, unsigned int inner)
+static void draw_border(cairo_t *cr, LMRect r, unsigned int outer, unsigned int inner)
 {
-    lm_graphics_draw_rect(r, outer);
+    lm_graphics_draw_rect(cr, r, outer);
     if (r.width > 2 && r.height > 2)
-        lm_graphics_draw_rect((LMRect){r.x + 1, r.y + 1, r.width - 2, r.height - 2}, inner);
+        lm_graphics_draw_rect(cr,
+                              (LMRect){r.x + 1, r.y + 1, r.width - 2, r.height - 2},
+                              inner);
 }
 
-static void draw_menu_item(LMRect r, const char *text, int selected)
-{
-    if (selected) {
-        lm_graphics_fill_rect(r, 0xff000080u);
-        lm_graphics_draw_text(text, r.x + 4, r.y + 2, 0xffffffffu);
-    } else {
-        lm_graphics_fill_rect(r, 0xffc0c0c0u);
-        lm_graphics_draw_text(text, r.x + 4, r.y + 2, 0xff000000u);
-    }
-}
-
-static void draw_separator(LMRect r)
-{
-    lm_graphics_fill_rect((LMRect){r.x + 3, r.y + 4, r.width - 6, 1}, 0xff808080u);
-    lm_graphics_fill_rect((LMRect){r.x + 3, r.y + 5, r.width - 6, 1}, 0xffffffffu);
-}
-
-static void draw_menu(void)
-{
-    if (menu_open == MENU_NONE)
-        return;
-
-    if (menu_open == MENU_GAME) {
-        LMRect box = {2, MENU_H, 168, 220};
-        lm_graphics_fill_rect(box, 0xffc0c0c0u);
-        lm_graphics_draw_rect((LMRect){box.x, box.y, box.width, box.height}, 0xff000000u);
-        lm_graphics_draw_rect((LMRect){box.x + 1, box.y + 1, box.width - 2, box.height - 2}, 0xffffffffu);
-
-        draw_menu_item((LMRect){box.x + 2, box.y + 2, box.width - 4, 18}, "New    F2", 0);
-        draw_separator((LMRect){box.x + 2, box.y + 20, box.width - 4, 8});
-        draw_menu_item((LMRect){box.x + 2, box.y + 28, box.width - 4, 18}, "Beginner", 0);
-        draw_menu_item((LMRect){box.x + 2, box.y + 46, box.width - 4, 18}, "Intermediate", 0);
-        draw_menu_item((LMRect){box.x + 2, box.y + 64, box.width - 4, 18}, "Expert", 0);
-        draw_menu_item((LMRect){box.x + 2, box.y + 82, box.width - 4, 18}, "Custom...", 0);
-        draw_separator((LMRect){box.x + 2, box.y + 100, box.width - 4, 8});
-        draw_menu_item((LMRect){box.x + 2, box.y + 108, box.width - 4, 18}, "Marks (?)", 0);
-        draw_menu_item((LMRect){box.x + 2, box.y + 126, box.width - 4, 18}, "Color", 0);
-        draw_separator((LMRect){box.x + 2, box.y + 144, box.width - 4, 8});
-        draw_menu_item((LMRect){box.x + 2, box.y + 152, box.width - 4, 18}, "Best Times...", 0);
-        draw_separator((LMRect){box.x + 2, box.y + 170, box.width - 4, 8});
-        draw_menu_item((LMRect){box.x + 2, box.y + 178, box.width - 4, 18}, "Exit", 0);
-    } else {
-        LMRect box = {58, MENU_H, 150, 76};
-        lm_graphics_fill_rect(box, 0xffc0c0c0u);
-        lm_graphics_draw_rect((LMRect){box.x, box.y, box.width, box.height}, 0xff000000u);
-        lm_graphics_draw_rect((LMRect){box.x + 1, box.y + 1, box.width - 2, box.height - 2}, 0xffffffffu);
-        draw_menu_item((LMRect){box.x + 2, box.y + 2, box.width - 4, 18}, "Contents F1", 0);
-        draw_menu_item((LMRect){box.x + 2, box.y + 20, box.width - 4, 18}, "Using Help", 0);
-        draw_separator((LMRect){box.x + 2, box.y + 38, box.width - 4, 8});
-        draw_menu_item((LMRect){box.x + 2, box.y + 46, box.width - 4, 18}, "About Minesweeper...", 0);
-    }
-}
-
-static void draw_menu_bar(void)
-{
-    lm_graphics_fill_rect((LMRect){0, 0, WIDTH, MENU_H}, 0xffc0c0c0u);
-    lm_graphics_draw_text("Game", 7, 2, 0xff000000u);
-    lm_graphics_draw_text("Help", 55, 2, 0xff000000u);
-    if (menu_open != MENU_NONE)
-        draw_menu();
-}
-
-static int game_menu_hit(int x, int y)
-{
-    LMRect box = {2, MENU_H, 168, 220};
-    if (x < box.x || x >= box.x + box.width || y < box.y || y >= box.y + box.height)
-        return -1;
-
-    y -= box.y + 2;
-    if (y >= 0 && y < 18) return 0;       /* New */
-    if (y >= 178 && y < 196) return 10;   /* Exit */
-    return -2;
-}
-
-static int help_menu_hit(int x, int y)
-{
-    LMRect box = {58, MENU_H, 150, 76};
-    if (x < box.x || x >= box.x + box.width || y < box.y || y >= box.y + box.height)
-        return -1;
-    y -= box.y + 2;
-    if (y >= 0 && y < 18) return 0;
-    if (y >= 46 && y < 64) return 2;
-    return -2;
-}
-
-static void draw(void)
+static gboolean on_draw(GtkWidget *widget, cairo_t *cr, gpointer user_data)
 {
     int x, y;
     int elapsed = (int)(time(NULL) - start_time);
     int face;
+
+    (void)widget;
+    (void)user_data;
 
     if (game_over)
         face = won ? BUTTON_SUNGLASSES : BUTTON_DEAD;
@@ -299,24 +229,28 @@ static void draw(void)
     else
         face = BUTTON_NORMAL;
 
-    lm_graphics_clear(0xffc0c0c0u);
-    draw_menu_bar();
+    lm_graphics_clear(cr, 0xffc0c0c0u, WIDTH, HEIGHT);
 
-    draw_border((LMRect){0, MENU_H, WIDTH, 46}, 0xffffffffu, 0xff808080u);
-    lm_graphics_fill_rect((LMRect){10, MENU_H + 3, WIDTH - 20, 40}, 0xffc0c0c0u);
-
-    draw_border((LMRect){GRID_X + 5, TOP_LED_Y - 1, LED_W * 3 + 2, LED_H + 2},
+    draw_border(cr, (LMRect){0, 0, WIDTH, HEIGHT},
+                0xffffffffu, 0xff808080u);
+    draw_border(cr, (LMRect){7, 7, WIDTH - 14, 46},
                 0xff808080u, 0xffffffffu);
-    draw_border((LMRect){WIDTH - 12 - LED_W * 3 - 2, TOP_LED_Y - 1,
-                         LED_W * 3 + 2, LED_H + 2}, 0xff808080u, 0xffffffffu);
-    lm_graphics_draw_sprite(LM_SHEET_BUTTON, face,
-                            (WIDTH - BUTTON_W) / 2, TOP_LED_Y, BUTTON_W, BUTTON_H);
+    lm_graphics_fill_rect(cr, (LMRect){10, 10, WIDTH - 20, 40}, 0xffc0c0c0u);
 
-    draw_led_number(GRID_X + 7, MINES - flags);
-    draw_led_number(WIDTH - 12 - LED_W * 3, elapsed);
+    draw_border(cr, (LMRect){GRID_X + 5, TOP_LED_Y - 1, LED_W * 3 + 2, LED_H + 2},
+                0xff808080u, 0xffffffffu);
+    draw_border(cr, (LMRect){WIDTH - 12 - LED_W * 3 - 2, TOP_LED_Y - 1,
+                             LED_W * 3 + 2, LED_H + 2},
+                0xff808080u, 0xffffffffu);
+    lm_graphics_draw_sprite(cr, LM_SHEET_BUTTON, face,
+                            (WIDTH - BUTTON_W) / 2, TOP_LED_Y,
+                            BUTTON_W, BUTTON_H);
 
-    draw_border((LMRect){GRID_X - 3, GRID_Y - 3,
-                         COLS * TILE + 6, ROWS * TILE + 6},
+    draw_led_number(cr, GRID_X + 7, MINES - flags);
+    draw_led_number(cr, WIDTH - 12 - LED_W * 3, elapsed);
+
+    draw_border(cr, (LMRect){GRID_X - 3, GRID_Y - 3,
+                             COLS * TILE + 6, ROWS * TILE + 6},
                 0xff808080u, 0xffffffffu);
 
     for (y = 0; y < ROWS; ++y) {
@@ -325,143 +259,302 @@ static void draw(void)
             int index;
 
             if (c->open) {
-                if (c->mine)
-                    index = BLOCK_HIT_MINE;
-                else
-                    index = block_sprite_for_number(c->number);
-            } else if (c->flag) {
+                index = c->mine ? BLOCK_HIT_MINE : block_sprite_for_number(c->number);
+            } else if (c->state == 1) {
                 index = game_over && !c->mine ? BLOCK_WRONG_FLAG : BLOCK_FLAG;
+            } else if (c->state == 2) {
+                index = BLOCK_QUESTION_COVERED;
             } else {
                 index = game_over && c->mine ? BLOCK_MINE : BLOCK_COVERED;
             }
 
-            lm_graphics_draw_sprite(LM_SHEET_BLOCKS, index,
+            lm_graphics_draw_sprite(cr, LM_SHEET_BLOCKS, index,
                                     GRID_X + x * TILE,
                                     GRID_Y + y * TILE,
                                     TILE, TILE);
         }
     }
 
-    lm_graphics_present();
+    return FALSE;
 }
 
-static int face_hit(int x, int y)
+static void queue_draw(void)
 {
+    lm_graphics_queue_draw();
+}
+
+static void on_new_game(GtkWidget *widget, gpointer data)
+{
+    (void)widget;
+    (void)data;
+    reset_game();
+    queue_draw();
+}
+
+static void on_exit_game(GtkWidget *widget, gpointer data)
+{
+    (void)widget;
+    (void)data;
+    gtk_main_quit();
+}
+
+static void on_marks_toggled(GtkCheckMenuItem *item, gpointer data)
+{
+    (void)data;
+    marks_enabled = gtk_check_menu_item_get_active(item) ? 1 : 0;
+}
+
+static void on_about(GtkWidget *widget, gpointer data)
+{
+    GtkWidget *window = GTK_WIDGET(data);
+    (void)widget;
+
+    gtk_show_about_dialog(GTK_WINDOW(window),
+                          "program-name", "Minesweeper",
+                          "comments", "Linux port of the classic Windows Minesweeper.",
+                          "version", "LinMine",
+                          NULL);
+}
+
+static void on_help_contents(GtkWidget *widget, gpointer data)
+{
+    GtkWidget *window = GTK_WIDGET(data);
+    GtkWidget *dialog;
+    (void)widget;
+
+    dialog = gtk_message_dialog_new(GTK_WINDOW(window),
+                                    GTK_DIALOG_MODAL,
+                                    GTK_MESSAGE_INFO,
+                                    GTK_BUTTONS_CLOSE,
+                                    "Minesweeper Help");
+    gtk_message_dialog_format_secondary_text(
+        GTK_MESSAGE_DIALOG(dialog),
+        "Left click opens a square. Right click marks it.\n"
+        "F2 starts a new game.");
+    gtk_dialog_run(GTK_DIALOG(dialog));
+    gtk_widget_destroy(dialog);
+}
+
+static void on_placeholder(GtkWidget *widget, gpointer data)
+{
+    GtkWidget *window = GTK_WIDGET(data);
+    const char *label = g_object_get_data(G_OBJECT(widget), "linmine-label");
+    GtkWidget *dialog;
+    (void)widget;
+
+    dialog = gtk_message_dialog_new(GTK_WINDOW(window),
+                                    GTK_DIALOG_MODAL,
+                                    GTK_MESSAGE_INFO,
+                                    GTK_BUTTONS_CLOSE,
+                                    "%s",
+                                    label ? label : "Not implemented");
+    gtk_dialog_run(GTK_DIALOG(dialog));
+    gtk_widget_destroy(dialog);
+}
+
+static GtkWidget *add_placeholder(GtkWidget *menu, GtkWidget *window,
+                                   const char *label)
+{
+    GtkWidget *item = gtk_menu_item_new_with_mnemonic(label);
+    g_object_set_data_full(G_OBJECT(item), "linmine-label",
+                           g_strdup(label), g_free);
+    g_signal_connect(item, "activate", G_CALLBACK(on_placeholder), window);
+    gtk_menu_shell_append(GTK_MENU_SHELL(menu), item);
+    return item;
+}
+
+static GtkWidget *make_menu_bar(GtkWidget *window)
+{
+    GtkWidget *bar = gtk_menu_bar_new();
+    GtkWidget *game_item = gtk_menu_item_new_with_mnemonic("_Game");
+    GtkWidget *help_item = gtk_menu_item_new_with_mnemonic("_Help");
+    GtkWidget *game_menu = gtk_menu_new();
+    GtkWidget *help_menu = gtk_menu_new();
+    GtkWidget *item;
+    GtkAccelGroup *accels = gtk_accel_group_new();
+
+    gtk_window_add_accel_group(GTK_WINDOW(window), accels);
+
+    gtk_menu_item_set_submenu(GTK_MENU_ITEM(game_item), game_menu);
+    gtk_menu_item_set_submenu(GTK_MENU_ITEM(help_item), help_menu);
+    gtk_menu_shell_append(GTK_MENU_SHELL(bar), game_item);
+    gtk_menu_shell_append(GTK_MENU_SHELL(bar), help_item);
+
+    item = gtk_menu_item_new_with_mnemonic("_New");
+    gtk_widget_add_accelerator(item, "activate", accels, GDK_KEY_F2, 0, GTK_ACCEL_VISIBLE);
+    g_signal_connect(item, "activate", G_CALLBACK(on_new_game), NULL);
+    gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), item);
+
+    gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), gtk_separator_menu_item_new());
+    add_placeholder(game_menu, window, "_Beginner");
+    add_placeholder(game_menu, window, "_Intermediate");
+    add_placeholder(game_menu, window, "_Expert");
+    add_placeholder(game_menu, window, "_Custom...");
+    gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), gtk_separator_menu_item_new());
+
+    item = gtk_check_menu_item_new_with_mnemonic("_Marks (?)");
+    gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(item), TRUE);
+    g_signal_connect(item, "toggled", G_CALLBACK(on_marks_toggled), NULL);
+    gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), item);
+
+    add_placeholder(game_menu, window, "Co_lor");
+    gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), gtk_separator_menu_item_new());
+    add_placeholder(game_menu, window, "Best _Times...");
+    gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), gtk_separator_menu_item_new());
+
+    item = gtk_menu_item_new_with_mnemonic("E_xit");
+    g_signal_connect(item, "activate", G_CALLBACK(on_exit_game), NULL);
+    gtk_menu_shell_append(GTK_MENU_SHELL(game_menu), item);
+
+    item = gtk_menu_item_new_with_mnemonic("_Contents");
+    gtk_widget_add_accelerator(item, "activate", accels, GDK_KEY_F1, 0, GTK_ACCEL_VISIBLE);
+    g_signal_connect(item, "activate", G_CALLBACK(on_help_contents), window);
+    gtk_menu_shell_append(GTK_MENU_SHELL(help_menu), item);
+    add_placeholder(help_menu, window, "Using _Help");
+    gtk_menu_shell_append(GTK_MENU_SHELL(help_menu), gtk_separator_menu_item_new());
+
+    item = gtk_menu_item_new_with_mnemonic("_About Minesweeper...");
+    g_signal_connect(item, "activate", G_CALLBACK(on_about), window);
+    gtk_menu_shell_append(GTK_MENU_SHELL(help_menu), item);
+
+    return bar;
+}
+
+static gboolean on_button_press(GtkWidget *widget, GdkEventButton *event, gpointer data)
+{
+    int x, y;
+    (void)widget;
+    (void)data;
+
+    if (event->button != GDK_BUTTON_PRIMARY && event->button != GDK_BUTTON_SECONDARY)
+        return FALSE;
+
+    x = (int)event->x;
+    y = (int)event->y;
+
+    if (event->button == GDK_BUTTON_PRIMARY) {
+        int fx = (WIDTH - BUTTON_W) / 2;
+        if (x >= fx && x < fx + BUTTON_W &&
+            y >= TOP_LED_Y && y < TOP_LED_Y + BUTTON_H) {
+            face_pressed = 1;
+            queue_draw();
+            return TRUE;
+        }
+    }
+
+    if (y >= GRID_Y && x >= GRID_X &&
+        x < GRID_X + COLS * TILE && y < GRID_Y + ROWS * TILE) {
+        int cell_x = (x - GRID_X) / TILE;
+        int cell_y = (y - GRID_Y) / TILE;
+        if (event->button == GDK_BUTTON_PRIMARY)
+            open_cell(cell_x, cell_y);
+        else
+            toggle_mark(cell_x, cell_y);
+        queue_draw();
+        return TRUE;
+    }
+
+    return FALSE;
+}
+
+static gboolean on_button_release(GtkWidget *widget, GdkEventButton *event, gpointer data)
+{
+    int x = (int)event->x;
+    int y = (int)event->y;
     int fx = (WIDTH - BUTTON_W) / 2;
-    return y >= TOP_LED_Y && y < TOP_LED_Y + BUTTON_H &&
-           x >= fx && x < fx + BUTTON_W;
+    (void)widget;
+    (void)data;
+
+    if (event->button != GDK_BUTTON_PRIMARY)
+        return FALSE;
+
+    if (face_pressed) {
+        if (x >= fx && x < fx + BUTTON_W &&
+            y >= TOP_LED_Y && y < TOP_LED_Y + BUTTON_H)
+            reset_game();
+        face_pressed = 0;
+        queue_draw();
+        return TRUE;
+    }
+
+    return FALSE;
 }
 
-int main(void)
+static gboolean on_timer(gpointer data)
 {
-    LMInputButton button;
-    LMPoint pos;
-    int pressed;
-    int event_type;
-    time_t last_draw_time = 0;
-    const char *asset_dir = "../winmine/bmp";
+    (void)data;
+    if (!game_over)
+        queue_draw();
+    return G_SOURCE_CONTINUE;
+}
 
+static void on_window_destroy(GtkWidget *widget, gpointer data)
+{
+    (void)widget;
+    (void)data;
+    gtk_main_quit();
+}
+
+int main(int argc, char **argv)
+{
+    GtkWidget *window;
+    GtkWidget *box;
+    GtkWidget *bar;
+    GtkWidget *drawing_area;
+    GtkCssProvider *css;
+    GdkRGBA clear_color;
+
+    gtk_init(&argc, &argv);
     srand((unsigned)time(NULL));
 
     if (!lm_graphics_init(WIDTH, HEIGHT, "Minesweeper"))
         return 1;
 
-    if (!lm_graphics_load_assets(asset_dir, 1)) {
+    window = lm_graphics_window();
+    drawing_area = lm_graphics_drawing_area();
+    gtk_container_remove(GTK_CONTAINER(window), drawing_area);
+
+    box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
+    bar = make_menu_bar(window);
+    gtk_box_pack_start(GTK_BOX(box), bar, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(box), drawing_area, FALSE, FALSE, 0);
+    gtk_container_add(GTK_CONTAINER(window), box);
+
+    gtk_widget_add_events(drawing_area, GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK);
+    g_signal_connect(drawing_area, "draw", G_CALLBACK(on_draw), NULL);
+    g_signal_connect(drawing_area, "button-press-event", G_CALLBACK(on_button_press), NULL);
+    g_signal_connect(drawing_area, "button-release-event", G_CALLBACK(on_button_release), NULL);
+    g_signal_connect(window, "destroy", G_CALLBACK(on_window_destroy), NULL);
+
+    css = gtk_css_provider_new();
+    gtk_css_provider_load_from_data(css,
+        "menubar { background: #c0c0c0; padding: 0; }"
+        "menubar > menuitem { padding: 2px 7px; }"
+        "menu { background: #c0c0c0; }"
+        "menu menuitem { padding: 3px 18px 3px 6px; }",
+        -1, NULL);
+    gtk_style_context_add_provider_for_screen(gdk_screen_get_default(),
+        GTK_STYLE_PROVIDER(css), GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
+    g_object_unref(css);
+
+    clear_color.red = 0.75;
+    clear_color.green = 0.75;
+    clear_color.blue = 0.75;
+    clear_color.alpha = 1.0;
+    gtk_widget_override_background_color(drawing_area, GTK_STATE_FLAG_NORMAL, &clear_color);
+
+    if (!lm_graphics_load_assets("../winmine/bmp", 1)) {
+        fprintf(stderr, "LinMine: failed to load WinMine BMP assets\n");
         lm_graphics_shutdown();
         return 1;
     }
 
     reset_game();
-    draw();
-    last_draw_time = time(NULL);
+    g_timeout_add_seconds(1, on_timer, NULL);
 
-    while (!lm_graphics_should_close()) {
-        event_type = lm_graphics_poll_event(&button, &pos, &pressed);
-        if (!event_type) {
-            time_t now = time(NULL);
-            if (!game_over && now != last_draw_time) {
-                draw();
-                last_draw_time = now;
-            }
-            lm_graphics_delay(16);
-            continue;
-        }
-
-        if (event_type == 2 && pos.x == -2) { /* F2 */
-            reset_game();
-            draw();
-            last_draw_time = time(NULL);
-            continue;
-        }
-
-        if (event_type == 2 && pos.x == -1) { /* F1 */
-            menu_open = MENU_HELP;
-            draw();
-            continue;
-        }
-
-        if (face_hit(pos.x, pos.y)) {
-            if (pressed && button == LM_BUTTON_LEFT) {
-                face_pressed = 1;
-                draw();
-            } else if (!pressed && button == LM_BUTTON_LEFT) {
-                if (face_pressed)
-                    reset_game();
-                face_pressed = 0;
-                draw();
-                last_draw_time = time(NULL);
-            }
-            continue;
-        }
-
-        if (pressed && button == LM_BUTTON_LEFT && pos.y < MENU_H) {
-            if (pos.x >= 2 && pos.x < 53) {
-                menu_open = menu_open == MENU_GAME ? MENU_NONE : MENU_GAME;
-                draw();
-            } else if (pos.x >= 53 && pos.x < 105) {
-                menu_open = menu_open == MENU_HELP ? MENU_NONE : MENU_HELP;
-                draw();
-            } else {
-                menu_open = MENU_NONE;
-                draw();
-            }
-            continue;
-        }
-
-        if (!pressed && button == LM_BUTTON_LEFT && menu_open != MENU_NONE) {
-            int hit = menu_open == MENU_GAME ? game_menu_hit(pos.x, pos.y)
-                                             : help_menu_hit(pos.x, pos.y);
-            if (hit == 0 && menu_open == MENU_GAME) {
-                reset_game();
-                menu_open = MENU_NONE;
-                draw();
-                last_draw_time = time(NULL);
-                continue;
-            }
-            if (hit == 10 && menu_open == MENU_GAME) {
-                menu_open = MENU_NONE;
-                lm_graphics_request_close();
-                continue;
-            }
-            menu_open = MENU_NONE;
-            draw();
-            continue;
-        }
-
-        if (!pressed)
-            continue;
-
-        if (pos.y >= GRID_Y && pos.x >= GRID_X) {
-            int x = (pos.x - GRID_X) / TILE;
-            int y = (pos.y - GRID_Y) / TILE;
-            if (button == LM_BUTTON_LEFT)
-                open_cell(x, y);
-            else if (button == LM_BUTTON_RIGHT)
-                toggle_flag(x, y);
-        }
-        draw();
-        last_draw_time = time(NULL);
-    }
+    gtk_widget_show_all(window);
+    gtk_widget_grab_focus(drawing_area);
+    gtk_main();
 
     lm_graphics_shutdown();
     return 0;
