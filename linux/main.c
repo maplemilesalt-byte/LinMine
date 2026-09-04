@@ -31,11 +31,21 @@
 #define LED_EMPTY 1
 #define LED_9 2
 
+#define BEGINNER_COLS 9
+#define BEGINNER_ROWS 9
+#define BEGINNER_MINES 10
+#define INTERMEDIATE_COLS 16
+#define INTERMEDIATE_ROWS 16
+#define INTERMEDIATE_MINES 40
+#define EXPERT_COLS 30
+#define EXPERT_ROWS 16
+#define EXPERT_MINES 99
+
 typedef struct Cell { unsigned char mine, open, state, number; } Cell;
 typedef enum { PRESET_BEGINNER, PRESET_INTERMEDIATE, PRESET_EXPERT } GamePreset;
 
 static Cell board[MAX_ROWS][MAX_COLS];
-static int game_cols=9, game_rows=9, mine_count=10;
+static int game_cols=BEGINNER_COLS, game_rows=BEGINNER_ROWS, mine_count=BEGINNER_MINES;
 static int game_over, won, remaining, flags, face_pressed, marks_enabled=1;
 static time_t start_time;
 static GtkWidget *window_widget, *drawing_area_widget;
@@ -47,7 +57,8 @@ static int block_sprite_for_number(int n){return n<=0?BLOCK_OPEN_0:15-n;}
 static int led_sprite_for_digit(int d){return d<0||d>9?LED_EMPTY:LED_9+(9-d);}
 static void queue_draw(void){lm_graphics_queue_draw();}
 
-static void reset_game(void){
+static void reset_game(void)
+{
  int mines=0,x,y,nx,ny;
  for(y=0;y<MAX_ROWS;y++)for(x=0;x<MAX_COLS;x++)board[y][x].mine=board[y][x].open=board[y][x].state=board[y][x].number=0;
  while(mines<mine_count){x=rand()%game_cols;y=rand()%game_rows;if(!board[y][x].mine){board[y][x].mine=1;mines++;}}
@@ -56,14 +67,19 @@ static void reset_game(void){
  game_over=won=flags=face_pressed=0;remaining=game_cols*game_rows-mine_count;start_time=time(NULL);
 }
 
-static void set_preset(GamePreset p){
- if(p==PRESET_BEGINNER){game_cols=9;game_rows=9;mine_count=10;}
- else if(p==PRESET_INTERMEDIATE){game_cols=16;game_rows=16;mine_count=40;}
- else {game_cols=30;game_rows=16;mine_count=99;}
- if(beginner_item)gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(beginner_item),p==PRESET_BEGINNER);
- if(intermediate_item)gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(intermediate_item),p==PRESET_INTERMEDIATE);
- if(expert_item)gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(expert_item),p==PRESET_EXPERT);
- reset_game();lm_graphics_resize(game_width(),game_height());queue_draw();
+static void set_preset(GamePreset p)
+{
+ if(p==PRESET_BEGINNER){game_cols=BEGINNER_COLS;game_rows=BEGINNER_ROWS;mine_count=BEGINNER_MINES;}
+ else if(p==PRESET_INTERMEDIATE){game_cols=INTERMEDIATE_COLS;game_rows=INTERMEDIATE_ROWS;mine_count=INTERMEDIATE_MINES;}
+ else {game_cols=EXPERT_COLS;game_rows=EXPERT_ROWS;mine_count=EXPERT_MINES;}
+ reset_game();
+ if(window_widget&&drawing_area_widget){lm_graphics_resize(game_width(),game_height());queue_draw();}
+ if(beginner_item&&p!=PRESET_BEGINNER)gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(beginner_item),FALSE);
+ if(intermediate_item&&p!=PRESET_INTERMEDIATE)gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(intermediate_item),FALSE);
+ if(expert_item&&p!=PRESET_EXPERT)gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(expert_item),FALSE);
+ if(p==PRESET_BEGINNER&&beginner_item)gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(beginner_item),TRUE);
+ if(p==PRESET_INTERMEDIATE&&intermediate_item)gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(intermediate_item),TRUE);
+ if(p==PRESET_EXPERT&&expert_item)gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(expert_item),TRUE);
 }
 
 static void open_cell(int x,int y){
@@ -110,7 +126,6 @@ static void on_marks(GtkCheckMenuItem*i,gpointer d){(void)d;marks_enabled=gtk_ch
 static void show_info(GtkWidget*p,const char*t,const char*b){GtkWidget*d=gtk_message_dialog_new(GTK_WINDOW(p),GTK_DIALOG_MODAL,GTK_MESSAGE_INFO,GTK_BUTTONS_CLOSE,"%s",t);gtk_message_dialog_format_secondary_text(GTK_MESSAGE_DIALOG(d),"%s",b);gtk_dialog_run(GTK_DIALOG(d));gtk_widget_destroy(d);}
 static void on_help(GtkWidget*w,gpointer d){(void)w;show_info(GTK_WIDGET(d),"Minesweeper Help","Left click opens a square. Right click marks it.\nF2 starts a new game.\nChoose a difficulty from Game.");}
 static void on_about(GtkWidget*w,gpointer d){(void)w;show_info(GTK_WIDGET(d),"About Minesweeper","Linux port of the classic Windows Minesweeper.\nLinMine");}
-
 static void on_custom(GtkWidget*w,gpointer data){
  GtkWidget*d,*grid,*ws,*hs,*ms,*l;int r;(void)w;
  d=gtk_dialog_new_with_buttons("Custom Field",GTK_WINDOW(data),GTK_DIALOG_MODAL|GTK_DIALOG_DESTROY_WITH_PARENT,"Cancel",GTK_RESPONSE_CANCEL,"OK",GTK_RESPONSE_OK,NULL);
@@ -122,7 +137,6 @@ static void on_custom(GtkWidget*w,gpointer data){
  if(r==GTK_RESPONSE_OK){int c=gtk_spin_button_get_value_as_int(GTK_SPIN_BUTTON(ws)),rr=gtk_spin_button_get_value_as_int(GTK_SPIN_BUTTON(hs)),m=gtk_spin_button_get_value_as_int(GTK_SPIN_BUTTON(ms));if(m>=c*rr)m=c*rr-1;game_cols=c;game_rows=rr;mine_count=m;reset_game();lm_graphics_resize(game_width(),game_height());queue_draw();}
  gtk_widget_destroy(d);
 }
-
 static GtkWidget*make_menu_bar(GtkWidget*p){
  GtkWidget*bar=gtk_menu_bar_new(),*gi=gtk_menu_item_new_with_mnemonic("_Game"),*hi=gtk_menu_item_new_with_mnemonic("_Help"),*gm=gtk_menu_new(),*hm=gtk_menu_new(),*i;GtkAccelGroup*a=gtk_accel_group_new();
  gtk_window_add_accel_group(GTK_WINDOW(p),a);gtk_menu_item_set_submenu(GTK_MENU_ITEM(gi),gm);gtk_menu_item_set_submenu(GTK_MENU_ITEM(hi),hm);gtk_menu_shell_append(GTK_MENU_SHELL(bar),gi);gtk_menu_shell_append(GTK_MENU_SHELL(bar),hi);
@@ -134,18 +148,17 @@ static GtkWidget*make_menu_bar(GtkWidget*p){
  i=gtk_menu_item_new_with_mnemonic("_Contents");gtk_widget_add_accelerator(i,"activate",a,GDK_KEY_F1,0,GTK_ACCEL_VISIBLE);g_signal_connect(i,"activate",G_CALLBACK(on_help),p);gtk_menu_shell_append(GTK_MENU_SHELL(hm),i);i=gtk_menu_item_new_with_mnemonic("Using _Help");g_signal_connect(i,"activate",G_CALLBACK(on_help),p);gtk_menu_shell_append(GTK_MENU_SHELL(hm),i);gtk_menu_shell_append(GTK_MENU_SHELL(hm),gtk_separator_menu_item_new());i=gtk_menu_item_new_with_mnemonic("_About Minesweeper...");g_signal_connect(i,"activate",G_CALLBACK(on_about),p);gtk_menu_shell_append(GTK_MENU_SHELL(hm),i);
  gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(beginner_item),TRUE);return bar;
 }
-
 static gboolean on_button_press(GtkWidget*w,GdkEventButton*e,gpointer d){int x=(int)e->x,y=(int)e->y;(void)w;(void)d;if(e->button==GDK_BUTTON_PRIMARY){int fx=(game_width()-BUTTON_W)/2;if(x>=fx&&x<fx+BUTTON_W&&y>=TOP_LED_Y&&y<TOP_LED_Y+BUTTON_H){face_pressed=1;queue_draw();return TRUE;}}if(y>=GRID_Y&&x>=GRID_X&&x<GRID_X+game_cols*TILE&&y<GRID_Y+game_rows*TILE){int cx=(x-GRID_X)/TILE,cy=(y-GRID_Y)/TILE;if(e->button==GDK_BUTTON_PRIMARY)open_cell(cx,cy);else if(e->button==GDK_BUTTON_SECONDARY)toggle_mark(cx,cy);queue_draw();return TRUE;}return FALSE;}
 static gboolean on_button_release(GtkWidget*w,GdkEventButton*e,gpointer d){int x=(int)e->x,y=(int)e->y,fx=(game_width()-BUTTON_W)/2;(void)w;(void)d;if(e->button==GDK_BUTTON_PRIMARY&&face_pressed){if(x>=fx&&x<fx+BUTTON_W&&y>=TOP_LED_Y&&y<TOP_LED_Y+BUTTON_H)reset_game();face_pressed=0;queue_draw();return TRUE;}return FALSE;}
 static gboolean on_timer(gpointer d){(void)d;if(!game_over)queue_draw();return G_SOURCE_CONTINUE;}
-
 int main(int argc,char**argv){
  GtkWidget*box,*bar,*da;GtkCssProvider*css;
- gtk_init(&argc,&argv);srand((unsigned)time(NULL));if(!lm_graphics_init(1,1,"Minesweeper"))return 1;
+ gtk_init(&argc,&argv);srand((unsigned)time(NULL));
+ if(!lm_graphics_init(game_width(),game_height(),"Minesweeper"))return 1;
  window_widget=lm_graphics_window();drawing_area_widget=lm_graphics_drawing_area();da=drawing_area_widget;
  box=gtk_box_new(GTK_ORIENTATION_VERTICAL,0);bar=make_menu_bar(window_widget);gtk_box_pack_start(GTK_BOX(box),bar,FALSE,FALSE,0);gtk_box_pack_start(GTK_BOX(box),da,FALSE,FALSE,0);gtk_container_add(GTK_CONTAINER(window_widget),box);
  gtk_widget_add_events(da,GDK_BUTTON_PRESS_MASK|GDK_BUTTON_RELEASE_MASK);g_signal_connect(da,"draw",G_CALLBACK(on_draw),NULL);g_signal_connect(da,"button-press-event",G_CALLBACK(on_button_press),NULL);g_signal_connect(da,"button-release-event",G_CALLBACK(on_button_release),NULL);
- css=gtk_css_provider_new();gtk_css_provider_load_from_data(css,"menubar,menu,menuitem,checkmenuitem,radiomenuitem { color:#000000; } menubar { background:#c0c0c0; padding:0; }",-1,NULL);gtk_style_context_add_provider_for_screen(gdk_screen_get_default(),GTK_STYLE_PROVIDER(css),GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);g_object_unref(css);
+ css=gtk_css_provider_new();gtk_css_provider_load_from_data(css,"menubar { background: #c0c0c0; padding: 0; color: #000000; } menubar menuitem { color: #000000; } menu { background: #c0c0c0; color: #000000; } menu menuitem { color: #000000; padding: 3px 18px 3px 6px; }",-1,NULL);gtk_style_context_add_provider_for_screen(gdk_screen_get_default(),GTK_STYLE_PROVIDER(css),GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);g_object_unref(css);
  if(!lm_graphics_load_assets("../winmine/bmp",1)){fprintf(stderr,"LinMine: failed to load WinMine BMP assets\n");lm_graphics_shutdown();return 1;}
- reset_game();lm_graphics_resize(game_width(),game_height());g_timeout_add_seconds(1,on_timer,NULL);gtk_widget_show_all(window_widget);gtk_main();lm_graphics_shutdown();return 0;
+ reset_game();g_timeout_add_seconds(1,on_timer,NULL);gtk_widget_show_all(window_widget);gtk_widget_grab_focus(da);gtk_main();lm_graphics_shutdown();return 0;
 }
