@@ -54,12 +54,12 @@ static SDL_Texture *lm_load_bmp(const char *dir, const char *name)
 
 int lm_graphics_init(int width, int height, const char *title)
 {
-    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "0");
-
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) != 0) {
         fprintf(stderr, "LinMine: SDL_Init: %s\n", SDL_GetError());
         return 0;
     }
+
+    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "0");
 
     lm_window = SDL_CreateWindow(title, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
                                  width, height, SDL_WINDOW_SHOWN);
@@ -180,9 +180,14 @@ void lm_graphics_draw_sprite(LMSpriteSheet sheet, int index, int x, int y,
         !lm_sheets[sheet] || index < 0 || index >= counts[sheet])
         return;
 
-    /* The original resources are horizontal sprite strips. */
-    src.x = index * widths[sheet];
-    src.y = 0;
+    /*
+     * The NT4 resources are vertical strips, not horizontal strips.
+     * They are also stored as bottom-up BMP data. SDL_LoadBMP converts
+     * that into a top-down surface, so logical resource index 0 is at
+     * the bottom of the SDL texture.
+     */
+    src.x = 0;
+    src.y = (counts[sheet] - 1 - index) * heights[sheet];
     src.w = widths[sheet];
     src.h = heights[sheet];
 
