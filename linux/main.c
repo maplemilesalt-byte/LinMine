@@ -44,7 +44,21 @@
 #define BUTTON_SURPRISED 3
 #define BUTTON_NORMAL 4
 
-#define LED_NEGATIVE 10
+/* LED sprites, in the exact order supplied for led.bmp. */
+#define LED_NEGATIVE 0
+#define LED_EMPTY 1
+#define LED_9 2
+#define LED_8 3
+#define LED_7 4
+#define LED_6 5
+#define LED_5 6
+#define LED_4 7
+#define LED_3 8
+#define LED_2 9
+#define LED_1 10
+#define LED_0 11
+
+/* LED sprites are 13x23, and the sheet is 13x276 (vertical). */
 
 typedef struct Cell {
     unsigned char mine;
@@ -67,6 +81,13 @@ static int block_sprite_for_number(int number)
     if (number <= 0)
         return BLOCK_OPEN_0;
     return BLOCK_1 - number + 1;
+}
+
+static int led_sprite_for_digit(int digit)
+{
+    if (digit < 0 || digit > 9)
+        return LED_EMPTY;
+    return LED_9 + (9 - digit);
 }
 
 static void reset_game(void)
@@ -160,9 +181,12 @@ static void draw_led_number(int x, int value)
     tens = (value / 10) % 10;
     ones = value % 10;
 
-    lm_graphics_draw_sprite(LM_SHEET_LED, hundreds, x, TOP_LED_Y, LED_W, LED_H);
-    lm_graphics_draw_sprite(LM_SHEET_LED, tens, x + LED_W, TOP_LED_Y, LED_W, LED_H);
-    lm_graphics_draw_sprite(LM_SHEET_LED, ones, x + LED_W * 2, TOP_LED_Y, LED_W, LED_H);
+    lm_graphics_draw_sprite(LM_SHEET_LED, led_sprite_for_digit(hundreds),
+                            x, TOP_LED_Y, LED_W, LED_H);
+    lm_graphics_draw_sprite(LM_SHEET_LED, led_sprite_for_digit(tens),
+                            x + LED_W, TOP_LED_Y, LED_W, LED_H);
+    lm_graphics_draw_sprite(LM_SHEET_LED, led_sprite_for_digit(ones),
+                            x + LED_W * 2, TOP_LED_Y, LED_W, LED_H);
 }
 
 static void draw_border(LMRect r, unsigned int outer, unsigned int inner)
