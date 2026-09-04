@@ -19,13 +19,23 @@
 #define WIDTH (GRID_X + COLS * TILE + 12)
 #define HEIGHT (GRID_Y + ROWS * TILE + 12)
 
-#define BLOCK_OPEN_0 0
-#define BLOCK_MINE 10
-#define BLOCK_WRONG_FLAG 11
-#define BLOCK_HIT_MINE 12
-#define BLOCK_QUESTION 13
-#define BLOCK_FLAG 14
-#define BLOCK_COVERED 15
+/* Block sprites, in the exact order of winmine/bmp/blocks.bmp. */
+#define BLOCK_COVERED 0
+#define BLOCK_FLAG 1
+#define BLOCK_QUESTION_COVERED 2
+#define BLOCK_HIT_MINE 3
+#define BLOCK_WRONG_FLAG 4
+#define BLOCK_MINE 5
+#define BLOCK_QUESTION_OPEN 6
+#define BLOCK_8 7
+#define BLOCK_7 8
+#define BLOCK_6 9
+#define BLOCK_5 10
+#define BLOCK_4 11
+#define BLOCK_3 12
+#define BLOCK_2 13
+#define BLOCK_1 14
+#define BLOCK_OPEN_0 15
 
 #define BUTTON_NORMAL 0
 #define BUTTON_PRESSED 1
@@ -47,6 +57,14 @@ static int won;
 static int remaining;
 static int flags;
 static time_t start_time;
+
+static int block_sprite_for_number(int number)
+{
+    /* The sheet stores 8..1 in ascending sprite-index order. */
+    if (number <= 0)
+        return BLOCK_OPEN_0;
+    return BLOCK_1 - number + 1;
+}
 
 static void reset_game(void)
 {
@@ -189,7 +207,7 @@ static void draw(void)
                 if (c->mine)
                     index = BLOCK_HIT_MINE;
                 else
-                    index = c->number;
+                    index = block_sprite_for_number(c->number);
             } else if (c->flag) {
                 index = game_over && !c->mine ? BLOCK_WRONG_FLAG : BLOCK_FLAG;
             } else {
