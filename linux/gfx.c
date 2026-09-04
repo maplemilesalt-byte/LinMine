@@ -1,7 +1,9 @@
 #include "gfx.h"
 
 #include <SDL2/SDL.h>
+#include <SDL2/SDL_ttf.h>
 #include <stdio.h>
+#include <string.h>
 
 #define LM_SHEET_COUNT 3
 #define LM_BLOCK_W 16
@@ -17,6 +19,7 @@
 static SDL_Window *lm_window;
 static SDL_Renderer *lm_renderer;
 static SDL_Texture *lm_sheets[LM_SHEET_COUNT];
+static TTF_Font *lm_font;
 static int lm_closed;
 
 static const char *lm_path(char *dst, size_t size, const char *dir, const char *name)
@@ -52,10 +55,38 @@ static SDL_Texture *lm_load_bmp(const char *dir, const char *name)
     return texture;
 }
 
+static TTF_Font *lm_load_font(void)
+{
+    static const char *paths[] = {
+        "/usr/share/fonts/truetype/msttcorefonts/Arial.ttf",
+        "/usr/share/fonts/truetype/msttcorefonts/Arial_Bold.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/TTF/DejaVuSans.ttf",
+        NULL
+    };
+    int i;
+
+    for (i = 0; paths[i]; ++i) {
+        TTF_Font *font = TTF_OpenFont(paths[i], 12);
+        if (font) {
+            TTF_SetFontHinting(font, TTF_HINTING_MONO);
+            return font;
+        }
+    }
+
+    return NULL;
+}
+
 int lm_graphics_init(int width, int height, const char *title)
 {
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) != 0) {
         fprintf(stderr, "LinMine: SDL_Init: %s\n", SDL_GetError());
+        return 0;
+    }
+
+    if (TTF_Init() != 0) {
+        fprintf(stderr, "LinMine: TTF_Init: %s\n", TTF_GetError());
+        SDL_Quit();
         return 0;
     }
 
@@ -65,6 +96,7 @@ int lm_graphics_init(int width, int height, const char *title)
                                  width, height, SDL_WINDOW_SHOWN);
     if (!lm_window) {
         fprintf(stderr, "LinMine: SDL_CreateWindow: %s\n", SDL_GetError());
+        TTF_Quit();
         SDL_Quit();
         return 0;
     }
@@ -77,9 +109,14 @@ int lm_graphics_init(int width, int height, const char *title)
         fprintf(stderr, "LinMine: SDL_CreateRenderer: %s\n", SDL_GetError());
         SDL_DestroyWindow(lm_window);
         lm_window = NULL;
+        TTF_Quit();
         SDL_Quit();
         return 0;
     }
+
+    lm_font = lm_load_font();
+    if (!lm_font)
+        fprintf(stderr, "LinMine: no TrueType font found; menu text will be unavailable\n");
 
     lm_closed = 0;
     return 1;
@@ -88,10 +125,13 @@ int lm_graphics_init(int width, int height, const char *title)
 void lm_graphics_shutdown(void)
 {
     lm_graphics_free_assets();
+    if (lm_font) TTF_CloseFont(lm_font);
+    lm_font = NULL;
     if (lm_renderer) SDL_DestroyRenderer(lm_renderer);
     if (lm_window) SDL_DestroyWindow(lm_window);
     lm_renderer = NULL;
     lm_window = NULL;
+    TTF_Quit();
     SDL_Quit();
 }
 
@@ -180,7 +220,6 @@ void lm_graphics_draw_sprite(LMSpriteSheet sheet, int index, int x, int y,
         !lm_sheets[sheet] || index < 0 || index >= counts[sheet])
         return;
 
-    /* All WinMine sprite sheets are vertical strips. */
     src.x = 0;
     src.y = index * heights[sheet];
     src.w = widths[sheet];
@@ -192,6 +231,40 @@ void lm_graphics_draw_sprite(LMSpriteSheet sheet, int index, int x, int y,
     dst.h = height > 0 ? height : src.h;
 
     SDL_RenderCopy(lm_renderer, lm_sheets[sheet], &src, &dst);
+}
+
+void lm_graphics_draw_text(const char *text, int x, int y, unsigned int pixel)
+{
+    SDL_Color color;
+    SDL_Surface *surface;
+    SDL_Texture *texture;
+    SDL_Rect dst;
+
+    if (!lm_renderer || !lm_font || !text || !*text)
+        return;
+
+    color.r = (Uint8)(pixel >> 16);
+    color.g = (Uint8)(pixel >> 8);
+    color.b = (Uint8)pixel;
+    color.a = (Uint8)(pixel >> 24);
+    if (!color.a) color.a = 255;
+
+    surface = TTF_RenderText_Solid(lm_font, text, color);
+    if (!surface)
+        return;
+
+    texture = SDL_CreateTextureFromSurface(lm_renderer, surface);
+    dst.x = x;
+    dst.y = y;
+    dst.w = surface->w;
+    dst.h = surface->h;
+    SDL_FreeSurface(surface);
+
+    if (!texture)
+        return;
+
+    SDL_RenderCopy(lm_renderer, texture, NULL, &dst);
+    SDL_DestroyTexture(texture);
 }
 
 int lm_graphics_poll_event(LMInputButton *button, LMPoint *position, int *pressed)
@@ -214,7 +287,27 @@ int lm_graphics_poll_event(LMInputButton *button, LMPoint *position, int *presse
             if (pressed) *pressed = event.type == SDL_MOUSEBUTTONDOWN;
             return 1;
         }
+        if (event.type == SDL_KEYDOWN) {
+            if (event.key.keysym.sym == SDLK_F1) {
+                if (position) { position->x = -1; position->y = -1; }
+                if (pressed) *pressed = 1;
+                if (button) *button = LM_BUTTON_LEFT;
+                return 2;
+            }
+            if (event.key.keysym.sym == SDLK_F2) {
+                if (position) { position->x = -2; position->y = -2; }
+                if (pressed) *pressed = 1;
+                if (button) *button = LM_BUTTON_LEFT;
+                return 2;
+            }
+        }
     }
+    return 0;
+}
+
+int lm_graphics_poll_key(int *key)
+{
+    (void)key;
     return 0;
 }
 
