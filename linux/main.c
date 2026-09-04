@@ -171,12 +171,10 @@ static void draw_led_number(int x, int value)
 {
     int hundreds, tens, ones;
 
-    if (value < 0) {
-        lm_graphics_draw_sprite(LM_SHEET_LED, LED_NEGATIVE, x, TOP_LED_Y, LED_W, LED_H);
-        value = -value;
-    }
-
     value %= 1000;
+    if (value < 0)
+        value = -value;
+
     hundreds = value / 100;
     tens = (value / 10) % 10;
     ones = value % 10;
@@ -199,7 +197,7 @@ static void draw_border(LMRect r, unsigned int outer, unsigned int inner)
 static void draw(void)
 {
     int x, y;
-    int elapsed = (int)(time(NULL) - start_time);
+    int elapsed = game_over ? (int)(time(NULL) - start_time) : (int)(time(NULL) - start_time);
     int face;
 
     if (game_over)
@@ -271,6 +269,7 @@ int main(void)
     LMInputButton button;
     LMPoint pos;
     int pressed;
+    time_t last_draw_time = 0;
     const char *asset_dir = "../winmine/bmp";
 
     srand((unsigned)time(NULL));
@@ -285,9 +284,15 @@ int main(void)
 
     reset_game();
     draw();
+    last_draw_time = time(NULL);
 
     while (!lm_graphics_should_close()) {
         if (!lm_graphics_poll_event(&button, &pos, &pressed)) {
+            time_t now = time(NULL);
+            if (!game_over && now != last_draw_time) {
+                draw();
+                last_draw_time = now;
+            }
             lm_graphics_delay(16);
             continue;
         }
@@ -301,6 +306,7 @@ int main(void)
                     reset_game();
                 face_pressed = 0;
                 draw();
+                last_draw_time = time(NULL);
             }
             continue;
         }
@@ -317,6 +323,7 @@ int main(void)
                 toggle_flag(x, y);
         }
         draw();
+        last_draw_time = time(NULL);
     }
 
     lm_graphics_shutdown();
