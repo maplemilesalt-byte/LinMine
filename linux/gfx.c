@@ -1,7 +1,7 @@
 #include "gfx.h"
 
-#include <SDL2/SDL.h>
-#include <SDL2/SDL_ttf.h>
+#include <cairo.h>
+#include <gdk-pixbuf/gdk-pixbuf.h>
 #include <stdio.h>
 
 #define LM_SHEET_COUNT 3
@@ -15,198 +15,156 @@
 #define LM_BUTTON_H 24
 #define LM_BUTTON_COUNT 5
 
-static SDL_Window *lm_window;
-static SDL_Renderer *lm_renderer;
-static SDL_Texture *lm_sheets[LM_SHEET_COUNT];
-static TTF_Font *lm_font;
-static int lm_closed;
+static GtkWidget *lm_window;
+static GtkWidget *lm_drawing_area;
+static GdkPixbuf *lm_sheets[LM_SHEET_COUNT];
 
 static const char *lm_path(char *dst, size_t size, const char *dir, const char *name)
 {
     int n;
-    if (!dir || !name || size == 0) return NULL;
+
+    if (!dir || !name || size == 0)
+        return NULL;
+
     n = snprintf(dst, size, "%s/%s", dir, name);
-    if (n < 0 || (size_t)n >= size) return NULL;
+    if (n < 0 || (size_t)n >= size)
+        return NULL;
+
     return dst;
 }
 
-static SDL_Texture *lm_load_bmp(const char *dir, const char *name)
+static GdkPixbuf *lm_load_bmp(const char *dir, const char *name)
 {
     char path[1024];
-    SDL_Surface *surface;
-    SDL_Texture *texture;
+    GError *error = NULL;
+    GdkPixbuf *pixbuf;
 
-    if (!lm_path(path, sizeof(path), dir, name)) return NULL;
-    surface = SDL_LoadBMP(path);
-    if (!surface) {
-        fprintf(stderr, "LinMine: cannot load %s: %s\n", path, SDL_GetError());
+    if (!lm_path(path, sizeof(path), dir, name))
+        return NULL;
+
+    pixbuf = gdk_pixbuf_new_from_file(path, &error);
+    if (!pixbuf) {
+        fprintf(stderr, "LinMine: cannot load %s: %s\n",
+                path, error ? error->message : "unknown error");
+        if (error)
+            g_error_free(error);
         return NULL;
     }
 
-    texture = SDL_CreateTextureFromSurface(lm_renderer, surface);
-    SDL_FreeSurface(surface);
-    if (!texture) {
-        fprintf(stderr, "LinMine: cannot create texture: %s\n", SDL_GetError());
-        return NULL;
-    }
-
-    SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_NONE);
-    return texture;
-}
-
-static TTF_Font *lm_load_font(void)
-{
-    static const char *paths[] = {
-        "/usr/share/fonts/truetype/msttcorefonts/Arial.ttf",
-        "/usr/share/fonts/truetype/msttcorefonts/Arial_Bold.ttf",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-        "/usr/share/fonts/TTF/DejaVuSans.ttf",
-        NULL
-    };
-    int i;
-
-    for (i = 0; paths[i]; ++i) {
-        TTF_Font *font = TTF_OpenFont(paths[i], 12);
-        if (font) {
-            TTF_SetFontHinting(font, TTF_HINTING_MONO);
-            return font;
-        }
-    }
-
-    return NULL;
+    return pixbuf;
 }
 
 int lm_graphics_init(int width, int height, const char *title)
 {
-    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) != 0) {
-        fprintf(stderr, "LinMine: SDL_Init: %s\n", SDL_GetError());
+    lm_window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+    if (!lm_window)
         return 0;
-    }
 
-    if (TTF_Init() != 0) {
-        fprintf(stderr, "LinMine: TTF_Init: %s\n", TTF_GetError());
-        SDL_Quit();
-        return 0;
-    }
+    gtk_window_set_title(GTK_WINDOW(lm_window), title ? title : "Minesweeper");
+    gtk_window_set_resizable(GTK_WINDOW(lm_window), FALSE);
+    gtk_widget_set_size_request(lm_window, width, height);
+    gtk_window_set_default_size(GTK_WINDOW(lm_window), width, height);
 
-    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "0");
+    lm_drawing_area = gtk_drawing_area_new();
+    gtk_widget_set_size_request(lm_drawing_area, width, height);
+    gtk_widget_set_can_focus(lm_drawing_area, TRUE);
 
-    lm_window = SDL_CreateWindow(title, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-                                 width, height, SDL_WINDOW_SHOWN);
-    if (!lm_window) {
-        fprintf(stderr, "LinMine: SDL_CreateWindow: %s\n", SDL_GetError());
-        TTF_Quit();
-        SDL_Quit();
-        return 0;
-    }
-
-    lm_renderer = SDL_CreateRenderer(lm_window, -1,
-                                     SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
-    if (!lm_renderer)
-        lm_renderer = SDL_CreateRenderer(lm_window, -1, SDL_RENDERER_SOFTWARE);
-    if (!lm_renderer) {
-        fprintf(stderr, "LinMine: SDL_CreateRenderer: %s\n", SDL_GetError());
-        SDL_DestroyWindow(lm_window);
-        lm_window = NULL;
-        TTF_Quit();
-        SDL_Quit();
-        return 0;
-    }
-
-    lm_font = lm_load_font();
-    if (!lm_font)
-        fprintf(stderr, "LinMine: no TrueType font found; menu text will be unavailable\n");
-
-    lm_closed = 0;
     return 1;
 }
 
 void lm_graphics_shutdown(void)
 {
     lm_graphics_free_assets();
-    if (lm_font) TTF_CloseFont(lm_font);
-    lm_font = NULL;
-    if (lm_renderer) SDL_DestroyRenderer(lm_renderer);
-    if (lm_window) SDL_DestroyWindow(lm_window);
-    lm_renderer = NULL;
+    if (lm_window)
+        gtk_widget_destroy(lm_window);
     lm_window = NULL;
-    TTF_Quit();
-    SDL_Quit();
+    lm_drawing_area = NULL;
 }
 
-void lm_graphics_request_close(void)
+GtkWidget *lm_graphics_window(void)
 {
-    lm_closed = 1;
+    return lm_window;
+}
+
+GtkWidget *lm_graphics_drawing_area(void)
+{
+    return lm_drawing_area;
 }
 
 int lm_graphics_load_assets(const char *dir, int color)
 {
     lm_graphics_free_assets();
+
     lm_sheets[LM_SHEET_BLOCKS] = lm_load_bmp(dir, color ? "blocks.bmp" : "blocksbw.bmp");
     lm_sheets[LM_SHEET_LED] = lm_load_bmp(dir, color ? "led.bmp" : "ledbw.bmp");
     lm_sheets[LM_SHEET_BUTTON] = lm_load_bmp(dir, color ? "button.bmp" : "buttonbw.bmp");
 
-    if (!lm_sheets[LM_SHEET_BLOCKS] || !lm_sheets[LM_SHEET_LED] || !lm_sheets[LM_SHEET_BUTTON]) {
+    if (!lm_sheets[LM_SHEET_BLOCKS] || !lm_sheets[LM_SHEET_LED] ||
+        !lm_sheets[LM_SHEET_BUTTON]) {
         lm_graphics_free_assets();
         return 0;
     }
+
     return 1;
 }
 
 void lm_graphics_free_assets(void)
 {
     int i;
+
     for (i = 0; i < LM_SHEET_COUNT; ++i) {
-        if (lm_sheets[i]) SDL_DestroyTexture(lm_sheets[i]);
+        if (lm_sheets[i])
+            g_object_unref(lm_sheets[i]);
         lm_sheets[i] = NULL;
     }
 }
 
-void lm_graphics_begin(void) {}
-void lm_graphics_end(void) {}
-void lm_graphics_present(void) { if (lm_renderer) SDL_RenderPresent(lm_renderer); }
-void lm_graphics_delay(unsigned int milliseconds) { SDL_Delay(milliseconds); }
-
-static void lm_color(unsigned int pixel)
+void lm_graphics_queue_draw(void)
 {
-    Uint8 alpha = (Uint8)(pixel >> 24);
-    SDL_SetRenderDrawColor(lm_renderer,
-        (Uint8)(pixel >> 16), (Uint8)(pixel >> 8), (Uint8)pixel,
-        alpha ? alpha : 255);
+    if (lm_drawing_area)
+        gtk_widget_queue_draw(lm_drawing_area);
 }
 
-void lm_graphics_clear(unsigned int pixel)
+static void lm_set_source(cairo_t *cr, unsigned int pixel)
 {
-    if (!lm_renderer) return;
-    lm_color(pixel);
-    SDL_RenderClear(lm_renderer);
+    double alpha = ((pixel >> 24) & 0xff) / 255.0;
+
+    if (alpha == 0.0)
+        alpha = 1.0;
+
+    cairo_set_source_rgba(cr,
+                          ((pixel >> 16) & 0xff) / 255.0,
+                          ((pixel >> 8) & 0xff) / 255.0,
+                          (pixel & 0xff) / 255.0,
+                          alpha);
 }
 
-void lm_graphics_fill_rect(LMRect rect, unsigned int pixel)
+void lm_graphics_clear(cairo_t *cr, unsigned int pixel, int width, int height)
 {
-    SDL_Rect r = { rect.x, rect.y, rect.width, rect.height };
-    if (!lm_renderer) return;
-    lm_color(pixel);
-    SDL_RenderFillRect(lm_renderer, &r);
+    (void)width;
+    (void)height;
+    lm_set_source(cr, pixel);
+    cairo_paint(cr);
 }
 
-void lm_graphics_draw_rect(LMRect rect, unsigned int pixel)
+void lm_graphics_fill_rect(cairo_t *cr, LMRect rect, unsigned int pixel)
 {
-    SDL_Rect r = { rect.x, rect.y, rect.width, rect.height };
-    if (!lm_renderer) return;
-    lm_color(pixel);
-    SDL_RenderDrawRect(lm_renderer, &r);
+    lm_set_source(cr, pixel);
+    cairo_rectangle(cr, rect.x, rect.y, rect.width, rect.height);
+    cairo_fill(cr);
 }
 
-void lm_graphics_set_pixel(int x, int y, unsigned int pixel)
+void lm_graphics_draw_rect(cairo_t *cr, LMRect rect, unsigned int pixel)
 {
-    if (!lm_renderer) return;
-    lm_color(pixel);
-    SDL_RenderDrawPoint(lm_renderer, x, y);
+    lm_set_source(cr, pixel);
+    cairo_set_line_width(cr, 1.0);
+    cairo_rectangle(cr, rect.x + 0.5, rect.y + 0.5,
+                    rect.width - 1.0, rect.height - 1.0);
+    cairo_stroke(cr);
 }
 
-void lm_graphics_draw_sprite(LMSpriteSheet sheet, int index, int x, int y,
-                             int width, int height)
+void lm_graphics_draw_sprite(cairo_t *cr, LMSpriteSheet sheet, int index,
+                             int x, int y, int width, int height)
 {
     static const int widths[LM_SHEET_COUNT] = {
         LM_BLOCK_W, LM_LED_W, LM_BUTTON_W
@@ -217,96 +175,29 @@ void lm_graphics_draw_sprite(LMSpriteSheet sheet, int index, int x, int y,
     static const int counts[LM_SHEET_COUNT] = {
         LM_BLOCK_COUNT, LM_LED_COUNT, LM_BUTTON_COUNT
     };
-    SDL_Rect src;
-    SDL_Rect dst;
+    GdkPixbuf *pixbuf;
+    int src_y;
+    double sx;
+    double sy;
 
-    if (!lm_renderer || sheet < 0 || sheet >= LM_SHEET_COUNT ||
-        !lm_sheets[sheet] || index < 0 || index >= counts[sheet])
+    if (!cr || sheet < 0 || sheet >= LM_SHEET_COUNT || index < 0 ||
+        index >= counts[sheet] || width <= 0 || height <= 0)
         return;
 
-    src.x = 0;
-    src.y = index * heights[sheet];
-    src.w = widths[sheet];
-    src.h = heights[sheet];
+    pixbuf = lm_sheets[sheet];
+    if (!pixbuf)
+        return;
 
-    dst.x = x;
-    dst.y = y;
-    dst.w = width > 0 ? width : src.w;
-    dst.h = height > 0 ? height : src.h;
+    src_y = index * heights[sheet];
+    sx = (double)width / widths[sheet];
+    sy = (double)height / heights[sheet];
 
-    SDL_RenderCopy(lm_renderer, lm_sheets[sheet], &src, &dst);
+    cairo_save(cr);
+    cairo_translate(cr, x, y);
+    cairo_scale(cr, sx, sy);
+    gdk_cairo_set_source_pixbuf(cr, pixbuf, 0, -src_y);
+    cairo_pattern_set_filter(cairo_get_source(cr), CAIRO_FILTER_NEAREST);
+    cairo_rectangle(cr, 0, 0, widths[sheet], heights[sheet]);
+    cairo_fill(cr);
+    cairo_restore(cr);
 }
-
-void lm_graphics_draw_text(const char *text, int x, int y, unsigned int pixel)
-{
-    SDL_Color color;
-    SDL_Surface *surface;
-    SDL_Texture *texture;
-    SDL_Rect dst;
-
-    if (!lm_renderer || !lm_font || !text || !*text)
-        return;
-
-    color.r = (Uint8)(pixel >> 16);
-    color.g = (Uint8)(pixel >> 8);
-    color.b = (Uint8)pixel;
-    color.a = (Uint8)(pixel >> 24);
-    if (!color.a) color.a = 255;
-
-    surface = TTF_RenderText_Solid(lm_font, text, color);
-    if (!surface)
-        return;
-
-    texture = SDL_CreateTextureFromSurface(lm_renderer, surface);
-    dst.x = x;
-    dst.y = y;
-    dst.w = surface->w;
-    dst.h = surface->h;
-    SDL_FreeSurface(surface);
-
-    if (!texture)
-        return;
-
-    SDL_RenderCopy(lm_renderer, texture, NULL, &dst);
-    SDL_DestroyTexture(texture);
-}
-
-int lm_graphics_poll_event(LMInputButton *button, LMPoint *position, int *pressed)
-{
-    SDL_Event event;
-    while (SDL_PollEvent(&event)) {
-        if (event.type == SDL_QUIT) {
-            lm_closed = 1;
-            return 1;
-        }
-        if (event.type == SDL_MOUSEBUTTONDOWN || event.type == SDL_MOUSEBUTTONUP) {
-            if (event.button.button == SDL_BUTTON_LEFT) *button = LM_BUTTON_LEFT;
-            else if (event.button.button == SDL_BUTTON_MIDDLE) *button = LM_BUTTON_MIDDLE;
-            else if (event.button.button == SDL_BUTTON_RIGHT) *button = LM_BUTTON_RIGHT;
-            else continue;
-            if (position) {
-                position->x = event.button.x;
-                position->y = event.button.y;
-            }
-            if (pressed) *pressed = event.type == SDL_MOUSEBUTTONDOWN;
-            return 1;
-        }
-        if (event.type == SDL_KEYDOWN) {
-            if (event.key.keysym.sym == SDLK_F1) {
-                if (position) { position->x = -1; position->y = -1; }
-                if (pressed) *pressed = 1;
-                if (button) *button = LM_BUTTON_LEFT;
-                return 2;
-            }
-            if (event.key.keysym.sym == SDLK_F2) {
-                if (position) { position->x = -2; position->y = -2; }
-                if (pressed) *pressed = 1;
-                if (button) *button = LM_BUTTON_LEFT;
-                return 2;
-            }
-        }
-    }
-    return 0;
-}
-
-int lm_graphics_should_close(void) { return lm_closed; }
