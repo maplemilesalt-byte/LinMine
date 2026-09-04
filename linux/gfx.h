@@ -34,7 +34,9 @@ void lm_graphics_draw_rect(LMRect rect, unsigned int pixel);
 void lm_graphics_set_pixel(int x, int y, unsigned int pixel);
 void lm_graphics_draw_sprite(LMSpriteSheet sheet, int index, int x, int y,
                              int width, int height);
+void lm_graphics_draw_text(const char *text, int x, int y, unsigned int pixel);
 int lm_graphics_poll_event(LMInputButton *button, LMPoint *position, int *pressed);
+int lm_graphics_poll_key(int *key);
 int lm_graphics_should_close(void);
 
 #ifdef __cplusplus
