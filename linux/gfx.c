@@ -59,6 +59,14 @@ int lm_graphics_init(int width, int height, const char *title)
     gtk_window_set_resizable(GTK_WINDOW(lm_window), FALSE);
 
     lm_drawing_area = gtk_drawing_area_new();
+    if (!lm_drawing_area)
+        return 0;
+
+    /* These are borrowed pointers, and should become NULL automatically
+       when GTK destroys the widgets. */
+    g_object_add_weak_pointer(G_OBJECT(lm_window), (gpointer *)&lm_window);
+    g_object_add_weak_pointer(G_OBJECT(lm_drawing_area), (gpointer *)&lm_drawing_area);
+
     gtk_widget_set_size_request(lm_drawing_area, width, height);
     gtk_widget_set_can_focus(lm_drawing_area, TRUE);
     return 1;
@@ -83,7 +91,7 @@ GtkWidget *lm_graphics_drawing_area(void)
 
 void lm_graphics_resize(int width, int height)
 {
-    if (!lm_drawing_area)
+    if (!lm_drawing_area || !GTK_IS_WIDGET(lm_drawing_area))
         return;
 
     gtk_widget_set_size_request(lm_drawing_area, width, height);
@@ -117,7 +125,7 @@ void lm_graphics_free_assets(void)
 
 void lm_graphics_queue_draw(void)
 {
-    if (lm_drawing_area)
+    if (lm_drawing_area && GTK_IS_WIDGET(lm_drawing_area))
         gtk_widget_queue_draw(lm_drawing_area);
 }
 
