@@ -67,10 +67,8 @@ int lm_graphics_init(int width, int height, const char *title)
 void lm_graphics_shutdown(void)
 {
     lm_graphics_free_assets();
-    if (lm_window)
-        gtk_widget_destroy(lm_window);
-    lm_window = NULL;
     lm_drawing_area = NULL;
+    lm_window = NULL;
 }
 
 GtkWidget *lm_graphics_window(void)
@@ -85,11 +83,11 @@ GtkWidget *lm_graphics_drawing_area(void)
 
 void lm_graphics_resize(int width, int height)
 {
-    if (!lm_window || !lm_drawing_area)
+    if (!lm_drawing_area)
         return;
 
     gtk_widget_set_size_request(lm_drawing_area, width, height);
-    gtk_window_resize(GTK_WINDOW(lm_window), width, height + 24);
+    gtk_widget_queue_resize(lm_drawing_area);
 }
 
 int lm_graphics_load_assets(const char *dir, int color)
