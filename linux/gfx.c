@@ -17,6 +17,8 @@
 static GtkWidget *lm_window;
 static GtkWidget *lm_drawing_area;
 static GdkPixbuf *lm_sheets[LM_SHEET_COUNT];
+static int lm_logical_width;
+static int lm_logical_height;
 
 static const char *lm_path(char *dst, size_t size, const char *dir, const char *name)
 {
@@ -49,6 +51,48 @@ static GdkPixbuf *lm_load_bmp(const char *dir, const char *name)
     return pixbuf;
 }
 
+static void lm_get_transform(int allocation_width, int allocation_height,
+                             double *scale, double *offset_x, double *offset_y)
+{
+    double sx, sy;
+
+    if (lm_logical_width <= 0 || lm_logical_height <= 0) {
+        *scale = 1.0;
+        *offset_x = 0.0;
+        *offset_y = 0.0;
+        return;
+    }
+
+    sx = (double)allocation_width / lm_logical_width;
+    sy = (double)allocation_height / lm_logical_height;
+    *scale = sx < sy ? sx : sy;
+    if (*scale <= 0.0)
+        *scale = 1.0;
+
+    *offset_x = (allocation_width - lm_logical_width * *scale) / 2.0;
+    *offset_y = (allocation_height - lm_logical_height * *scale) / 2.0;
+}
+
+static gboolean lm_transform_button_event(GtkWidget *widget,
+                                          GdkEventButton *event,
+                                          gpointer data)
+{
+    GtkAllocation allocation;
+    double scale, offset_x, offset_y;
+    (void)data;
+
+    if (!widget || !event || lm_logical_width <= 0 || lm_logical_height <= 0)
+        return FALSE;
+
+    gtk_widget_get_allocation(widget, &allocation);
+    lm_get_transform(allocation.width, allocation.height,
+                     &scale, &offset_x, &offset_y);
+
+    event->x = (event->x - offset_x) / scale;
+    event->y = (event->y - offset_y) / scale;
+    return FALSE;
+}
+
 int lm_graphics_init(int width, int height, const char *title)
 {
     lm_window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
@@ -62,12 +106,15 @@ int lm_graphics_init(int width, int height, const char *title)
     if (!lm_drawing_area)
         return 0;
 
-    /* These are borrowed pointers, and should become NULL automatically
-       when GTK destroys the widgets. */
+    lm_logical_width = width;
+    lm_logical_height = height;
+
     g_object_add_weak_pointer(G_OBJECT(lm_window), (gpointer *)&lm_window);
     g_object_add_weak_pointer(G_OBJECT(lm_drawing_area), (gpointer *)&lm_drawing_area);
 
     gtk_widget_set_size_request(lm_drawing_area, width, height);
+    gtk_widget_set_hexpand(lm_drawing_area, TRUE);
+    gtk_widget_set_vexpand(lm_drawing_area, TRUE);
     gtk_widget_set_can_focus(lm_drawing_area, TRUE);
     return 1;
 }
@@ -91,6 +138,9 @@ GtkWidget *lm_graphics_drawing_area(void)
 
 void lm_graphics_resize(int width, int height)
 {
+    lm_logical_width = width;
+    lm_logical_height = height;
+
     if (!lm_drawing_area || !GTK_IS_WIDGET(lm_drawing_area))
         return;
 
@@ -143,10 +193,26 @@ static void lm_set_source(cairo_t *cr, unsigned int pixel)
 
 void lm_graphics_clear(cairo_t *cr, unsigned int pixel, int width, int height)
 {
-    (void)width;
-    (void)height;
+    GtkAllocation allocation;
+    double scale, offset_x, offset_y;
+
+    lm_logical_width = width;
+    lm_logical_height = height;
+
+    if (lm_drawing_area && GTK_IS_WIDGET(lm_drawing_area)) {
+        gtk_widget_get_allocation(lm_drawing_area, &allocation);
+        lm_get_transform(allocation.width, allocation.height,
+                         &scale, &offset_x, &offset_y);
+    } else {
+        scale = 1.0;
+        offset_x = offset_y = 0.0;
+    }
+
     lm_set_source(cr, pixel);
     cairo_paint(cr);
+
+    cairo_translate(cr, offset_x, offset_y);
+    cairo_scale(cr, scale, scale);
 }
 
 void lm_graphics_fill_rect(cairo_t *cr, LMRect rect, unsigned int pixel)
