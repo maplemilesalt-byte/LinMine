@@ -524,10 +524,14 @@ int main(int argc, char **argv)
 
     css = gtk_css_provider_new();
     gtk_css_provider_load_from_data(css,
-        "menubar { background: #c0c0c0; padding: 0; }"
-        "menubar > menuitem { padding: 2px 7px; }"
-        "menu { background: #c0c0c0; }"
-        "menu menuitem { padding: 3px 18px 3px 6px; }",
+        "menubar { background: #c0c0c0; padding: 0; color: #000000; }"
+        "menubar > menuitem { padding: 2px 7px; color: #000000; }"
+        "menubar > menuitem label { color: #000000; }"
+        "menu { background: #c0c0c0; color: #000000; }"
+        "menu menuitem { padding: 3px 18px 3px 6px; color: #000000; }"
+        "menu menuitem label { color: #000000; }"
+        "checkmenuitem label { color: #000000; }"
+        "checkmenuitem:checked label { color: #000000; }",
         -1, NULL);
     gtk_style_context_add_provider_for_screen(gdk_screen_get_default(),
         GTK_STYLE_PROVIDER(css), GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
