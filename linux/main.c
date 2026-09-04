@@ -63,6 +63,20 @@ static void apply_tablet_mode(void)
     else {gtk_window_unmaximize(GTK_WINDOW(window_widget));lm_graphics_resize(game_width(),game_height());}
 }
 
+/* Convert drawing-area coordinates back to the game's logical coordinates. */
+static void tablet_to_game_coords(double *x,double *y)
+{
+    GtkAllocation a;
+    double sx,sy;
+    if(!tablet_mode||!drawing_area_widget||!GTK_IS_WIDGET(drawing_area_widget))return;
+    gtk_widget_get_allocation(drawing_area_widget,&a);
+    if(a.width<=0||a.height<=0)return;
+    sx=(double)a.width/game_width();
+    sy=(double)a.height/game_height();
+    if(sx>0.0)*x/=sx;
+    if(sy>0.0)*y/=sy;
+}
+
 static void reset_game(void)
 {
     int mines=0,x,y,nx,ny;
@@ -169,8 +183,8 @@ static GtkWidget*make_menu_bar(GtkWidget*p)
     return bar;
 }
 
-static gboolean on_button_press(GtkWidget*w,GdkEventButton*e,gpointer d){int x=(int)e->x,y=(int)e->y;(void)w;(void)d;if(e->button==GDK_BUTTON_PRIMARY){int fx=(game_width()-BUTTON_W)/2;if(x>=fx&&x<fx+BUTTON_W&&y>=TOP_LED_Y&&y<TOP_LED_Y+BUTTON_H){face_pressed=1;queue_draw();return TRUE;}}if(y>=GRID_Y&&x>=GRID_X&&x<GRID_X+game_cols*TILE&&y<GRID_Y+game_rows*TILE){int cx=(x-GRID_X)/TILE,cy=(y-GRID_Y)/TILE;if(e->button==GDK_BUTTON_PRIMARY)open_cell(cx,cy);else if(e->button==GDK_BUTTON_SECONDARY)toggle_mark(cx,cy);queue_draw();return TRUE;}return FALSE;}
-static gboolean on_button_release(GtkWidget*w,GdkEventButton*e,gpointer d){int x=(int)e->x,y=(int)e->y,fx=(game_width()-BUTTON_W)/2;(void)w;(void)d;if(e->button==GDK_BUTTON_PRIMARY&&face_pressed){if(x>=fx&&x<fx+BUTTON_W&&y>=TOP_LED_Y&&y<TOP_LED_Y+BUTTON_H)reset_game();face_pressed=0;queue_draw();return TRUE;}return FALSE;}
+static gboolean on_button_press(GtkWidget*w,GdkEventButton*e,gpointer d){double x=e->x,y=e->y;int ix,iy;(void)w;(void)d;tablet_to_game_coords(&x,&y);ix=(int)x;iy=(int)y;if(e->button==GDK_BUTTON_PRIMARY){int fx=(game_width()-BUTTON_W)/2;if(ix>=fx&&ix<fx+BUTTON_W&&iy>=TOP_LED_Y&&iy<TOP_LED_Y+BUTTON_H){face_pressed=1;queue_draw();return TRUE;}}if(iy>=GRID_Y&&ix>=GRID_X&&ix<GRID_X+game_cols*TILE&&iy<GRID_Y+game_rows*TILE){int cx=(ix-GRID_X)/TILE,cy=(iy-GRID_Y)/TILE;if(e->button==GDK_BUTTON_PRIMARY)open_cell(cx,cy);else if(e->button==GDK_BUTTON_SECONDARY)toggle_mark(cx,cy);queue_draw();return TRUE;}return FALSE;}
+static gboolean on_button_release(GtkWidget*w,GdkEventButton*e,gpointer d){double x=e->x,y=e->y;int ix,iy,fx;(void)w;(void)d;tablet_to_game_coords(&x,&y);ix=(int)x;iy=(int)y;fx=(game_width()-BUTTON_W)/2;if(e->button==GDK_BUTTON_PRIMARY&&face_pressed){if(ix>=fx&&ix<fx+BUTTON_W&&iy>=TOP_LED_Y&&iy<TOP_LED_Y+BUTTON_H)reset_game();face_pressed=0;queue_draw();return TRUE;}return FALSE;}
 static gboolean on_timer(gpointer d){(void)d;if(!game_over)queue_draw();return G_SOURCE_CONTINUE;}
 
 int main(int argc,char**argv)
@@ -181,7 +195,7 @@ int main(int argc,char**argv)
     window_widget=lm_graphics_window();drawing_area_widget=lm_graphics_drawing_area();da=drawing_area_widget;
     gtk_window_set_icon_from_file(GTK_WINDOW(window_widget),"winmine-1.png",&icon_error);
     if(icon_error){fprintf(stderr,"LinMine: cannot load window icon: %s\n",icon_error->message);g_error_free(icon_error);icon_error=NULL;}
-    box=gtk_box_new(GTK_ORIENTATION_VERTICAL,0);bar=make_menu_bar(window_widget);gtk_box_pack_start(GTK_BOX(box),bar,FALSE,FALSE,0);gtk_box_pack_start(GTK_BOX(box),da,FALSE,FALSE,0);gtk_container_add(GTK_CONTAINER(window_widget),box);
+    box=gtk_box_new(GTK_ORIENTATION_VERTICAL,0);bar=make_menu_bar(window_widget);gtk_box_pack_start(GTK_BOX(box),bar,FALSE,FALSE,0);gtk_box_pack_start(GTK_BOX(box),da,TRUE,TRUE,0);gtk_container_add(GTK_CONTAINER(window_widget),box);
     g_signal_connect(window_widget,"destroy",G_CALLBACK(on_window_destroy),NULL);
     gtk_widget_add_events(da,GDK_BUTTON_PRESS_MASK|GDK_BUTTON_RELEASE_MASK);g_signal_connect(da,"draw",G_CALLBACK(on_draw),NULL);g_signal_connect(da,"button-press-event",G_CALLBACK(on_button_press),NULL);g_signal_connect(da,"button-release-event",G_CALLBACK(on_button_release),NULL);
     css=gtk_css_provider_new();gtk_css_provider_load_from_data(css,"menubar { background: #c0c0c0; padding: 0; color: #000000; } menubar menuitem { color: #000000; } menu { background: #c0c0c0; color: #000000; } menu menuitem { color: #000000; padding: 3px 18px 3px 6px; }",-1,NULL);gtk_style_context_add_provider_for_screen(gdk_screen_get_default(),GTK_STYLE_PROVIDER(css),GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);g_object_unref(css);
