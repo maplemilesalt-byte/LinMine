@@ -56,7 +56,7 @@ int lm_graphics_init(int width, int height, const char *title)
         return 0;
 
     gtk_window_set_title(GTK_WINDOW(lm_window), title ? title : "Minesweeper");
-    gtk_window_set_resizable(GTK_WINDOW(lm_window), FALSE);
+    gtk_window_set_resizable(GTK_WINDOW(lm_window), TRUE);
 
     lm_drawing_area = gtk_drawing_area_new();
     if (!lm_drawing_area)
