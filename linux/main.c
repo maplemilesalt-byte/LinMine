@@ -272,7 +272,7 @@ static int game_menu_hit(int x, int y)
     y -= box.y + 2;
     if (y >= 0 && y < 18) return 0;       /* New */
     if (y >= 178 && y < 196) return 10;   /* Exit */
-    return -2;                             /* Existing menu item / separator */
+    return -2;
 }
 
 static int help_menu_hit(int x, int y)
@@ -436,6 +436,11 @@ int main(void)
                 menu_open = MENU_NONE;
                 draw();
                 last_draw_time = time(NULL);
+                continue;
+            }
+            if (hit == 10 && menu_open == MENU_GAME) {
+                menu_open = MENU_NONE;
+                lm_graphics_request_close();
                 continue;
             }
             menu_open = MENU_NONE;
