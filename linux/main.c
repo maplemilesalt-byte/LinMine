@@ -7,15 +7,16 @@
 #define ROWS 9
 #define MINES 10
 
-/* Native WinMine layout. */
+/* Native WinMine layout, including its menu bar. */
 #define TILE 16
 #define LED_W 13
 #define LED_H 23
 #define BUTTON_W 24
 #define BUTTON_H 24
+#define MENU_H 18
 #define GRID_X 12
-#define GRID_Y 55
-#define TOP_LED_Y 16
+#define GRID_Y 73
+#define TOP_LED_Y 34
 #define WIDTH (GRID_X + COLS * TILE + 12)
 #define HEIGHT (GRID_Y + ROWS * TILE + 12)
 
@@ -58,7 +59,12 @@
 #define LED_1 10
 #define LED_0 11
 
-/* LED sprites are 13x23, and the sheet is 13x276 (vertical). */
+/* Original menu.inc structure. */
+enum MenuId {
+    MENU_NONE,
+    MENU_GAME,
+    MENU_HELP
+};
 
 typedef struct Cell {
     unsigned char mine;
@@ -73,11 +79,11 @@ static int won;
 static int remaining;
 static int flags;
 static int face_pressed;
+static int menu_open;
 static time_t start_time;
 
 static int block_sprite_for_number(int number)
 {
-    /* The sheet stores 8..1 in ascending sprite-index order. */
     if (number <= 0)
         return BLOCK_OPEN_0;
     return BLOCK_1 - number + 1;
@@ -123,6 +129,7 @@ static void reset_game(void)
     flags = 0;
     remaining = ROWS * COLS - MINES;
     face_pressed = 0;
+    menu_open = MENU_NONE;
     start_time = time(NULL);
 }
 
@@ -194,10 +201,95 @@ static void draw_border(LMRect r, unsigned int outer, unsigned int inner)
         lm_graphics_draw_rect((LMRect){r.x + 1, r.y + 1, r.width - 2, r.height - 2}, inner);
 }
 
+static void draw_menu_item(LMRect r, const char *text, int selected)
+{
+    if (selected) {
+        lm_graphics_fill_rect(r, 0xff000080u);
+        lm_graphics_draw_text(text, r.x + 4, r.y + 2, 0xffffffffu);
+    } else {
+        lm_graphics_fill_rect(r, 0xffc0c0c0u);
+        lm_graphics_draw_text(text, r.x + 4, r.y + 2, 0xff000000u);
+    }
+}
+
+static void draw_separator(LMRect r)
+{
+    lm_graphics_fill_rect((LMRect){r.x + 3, r.y + 4, r.width - 6, 1}, 0xff808080u);
+    lm_graphics_fill_rect((LMRect){r.x + 3, r.y + 5, r.width - 6, 1}, 0xffffffffu);
+}
+
+static void draw_menu(void)
+{
+    if (menu_open == MENU_NONE)
+        return;
+
+    if (menu_open == MENU_GAME) {
+        LMRect box = {2, MENU_H, 168, 220};
+        lm_graphics_fill_rect(box, 0xffc0c0c0u);
+        lm_graphics_draw_rect((LMRect){box.x, box.y, box.width, box.height}, 0xff000000u);
+        lm_graphics_draw_rect((LMRect){box.x + 1, box.y + 1, box.width - 2, box.height - 2}, 0xffffffffu);
+
+        draw_menu_item((LMRect){box.x + 2, box.y + 2, box.width - 4, 18}, "New    F2", 0);
+        draw_separator((LMRect){box.x + 2, box.y + 20, box.width - 4, 8});
+        draw_menu_item((LMRect){box.x + 2, box.y + 28, box.width - 4, 18}, "Beginner", 0);
+        draw_menu_item((LMRect){box.x + 2, box.y + 46, box.width - 4, 18}, "Intermediate", 0);
+        draw_menu_item((LMRect){box.x + 2, box.y + 64, box.width - 4, 18}, "Expert", 0);
+        draw_menu_item((LMRect){box.x + 2, box.y + 82, box.width - 4, 18}, "Custom...", 0);
+        draw_separator((LMRect){box.x + 2, box.y + 100, box.width - 4, 8});
+        draw_menu_item((LMRect){box.x + 2, box.y + 108, box.width - 4, 18}, "Marks (?)", 0);
+        draw_menu_item((LMRect){box.x + 2, box.y + 126, box.width - 4, 18}, "Color", 0);
+        draw_separator((LMRect){box.x + 2, box.y + 144, box.width - 4, 8});
+        draw_menu_item((LMRect){box.x + 2, box.y + 152, box.width - 4, 18}, "Best Times...", 0);
+        draw_separator((LMRect){box.x + 2, box.y + 170, box.width - 4, 8});
+        draw_menu_item((LMRect){box.x + 2, box.y + 178, box.width - 4, 18}, "Exit", 0);
+    } else {
+        LMRect box = {58, MENU_H, 150, 76};
+        lm_graphics_fill_rect(box, 0xffc0c0c0u);
+        lm_graphics_draw_rect((LMRect){box.x, box.y, box.width, box.height}, 0xff000000u);
+        lm_graphics_draw_rect((LMRect){box.x + 1, box.y + 1, box.width - 2, box.height - 2}, 0xffffffffu);
+        draw_menu_item((LMRect){box.x + 2, box.y + 2, box.width - 4, 18}, "Contents F1", 0);
+        draw_menu_item((LMRect){box.x + 2, box.y + 20, box.width - 4, 18}, "Using Help", 0);
+        draw_separator((LMRect){box.x + 2, box.y + 38, box.width - 4, 8});
+        draw_menu_item((LMRect){box.x + 2, box.y + 46, box.width - 4, 18}, "About Minesweeper...", 0);
+    }
+}
+
+static void draw_menu_bar(void)
+{
+    lm_graphics_fill_rect((LMRect){0, 0, WIDTH, MENU_H}, 0xffc0c0c0u);
+    lm_graphics_draw_text("Game", 7, 2, 0xff000000u);
+    lm_graphics_draw_text("Help", 55, 2, 0xff000000u);
+    if (menu_open != MENU_NONE)
+        draw_menu();
+}
+
+static int game_menu_hit(int x, int y)
+{
+    LMRect box = {2, MENU_H, 168, 220};
+    if (x < box.x || x >= box.x + box.width || y < box.y || y >= box.y + box.height)
+        return -1;
+
+    y -= box.y + 2;
+    if (y >= 0 && y < 18) return 0;       /* New */
+    if (y >= 178 && y < 196) return 10;   /* Exit */
+    return -2;                             /* Existing menu item / separator */
+}
+
+static int help_menu_hit(int x, int y)
+{
+    LMRect box = {58, MENU_H, 150, 76};
+    if (x < box.x || x >= box.x + box.width || y < box.y || y >= box.y + box.height)
+        return -1;
+    y -= box.y + 2;
+    if (y >= 0 && y < 18) return 0;
+    if (y >= 46 && y < 64) return 2;
+    return -2;
+}
+
 static void draw(void)
 {
     int x, y;
-    int elapsed = game_over ? (int)(time(NULL) - start_time) : (int)(time(NULL) - start_time);
+    int elapsed = (int)(time(NULL) - start_time);
     int face;
 
     if (game_over)
@@ -207,15 +299,12 @@ static void draw(void)
     else
         face = BUTTON_NORMAL;
 
-    /* Classic WinMine gray background. */
     lm_graphics_clear(0xffc0c0c0u);
+    draw_menu_bar();
 
-    /* Outer window and upper status panel. */
-    draw_border((LMRect){0, 0, WIDTH, HEIGHT}, 0xffffffffu, 0xff808080u);
-    draw_border((LMRect){7, 7, WIDTH - 14, 46}, 0xff808080u, 0xffffffffu);
-    lm_graphics_fill_rect((LMRect){10, 10, WIDTH - 20, 40}, 0xffc0c0c0u);
+    draw_border((LMRect){0, MENU_H, WIDTH, 46}, 0xffffffffu, 0xff808080u);
+    lm_graphics_fill_rect((LMRect){10, MENU_H + 3, WIDTH - 20, 40}, 0xffc0c0c0u);
 
-    /* Counter wells and the native 24x24 face sprite. */
     draw_border((LMRect){GRID_X + 5, TOP_LED_Y - 1, LED_W * 3 + 2, LED_H + 2},
                 0xff808080u, 0xffffffffu);
     draw_border((LMRect){WIDTH - 12 - LED_W * 3 - 2, TOP_LED_Y - 1,
@@ -226,7 +315,6 @@ static void draw(void)
     draw_led_number(GRID_X + 7, MINES - flags);
     draw_led_number(WIDTH - 12 - LED_W * 3, elapsed);
 
-    /* The board itself is native 16x16 tiles. */
     draw_border((LMRect){GRID_X - 3, GRID_Y - 3,
                          COLS * TILE + 6, ROWS * TILE + 6},
                 0xff808080u, 0xffffffffu);
@@ -269,6 +357,7 @@ int main(void)
     LMInputButton button;
     LMPoint pos;
     int pressed;
+    int event_type;
     time_t last_draw_time = 0;
     const char *asset_dir = "../winmine/bmp";
 
@@ -287,13 +376,27 @@ int main(void)
     last_draw_time = time(NULL);
 
     while (!lm_graphics_should_close()) {
-        if (!lm_graphics_poll_event(&button, &pos, &pressed)) {
+        event_type = lm_graphics_poll_event(&button, &pos, &pressed);
+        if (!event_type) {
             time_t now = time(NULL);
             if (!game_over && now != last_draw_time) {
                 draw();
                 last_draw_time = now;
             }
             lm_graphics_delay(16);
+            continue;
+        }
+
+        if (event_type == 2 && pos.x == -2) { /* F2 */
+            reset_game();
+            draw();
+            last_draw_time = time(NULL);
+            continue;
+        }
+
+        if (event_type == 2 && pos.x == -1) { /* F1 */
+            menu_open = MENU_HELP;
+            draw();
             continue;
         }
 
@@ -308,6 +411,35 @@ int main(void)
                 draw();
                 last_draw_time = time(NULL);
             }
+            continue;
+        }
+
+        if (pressed && button == LM_BUTTON_LEFT && pos.y < MENU_H) {
+            if (pos.x >= 2 && pos.x < 53) {
+                menu_open = menu_open == MENU_GAME ? MENU_NONE : MENU_GAME;
+                draw();
+            } else if (pos.x >= 53 && pos.x < 105) {
+                menu_open = menu_open == MENU_HELP ? MENU_NONE : MENU_HELP;
+                draw();
+            } else {
+                menu_open = MENU_NONE;
+                draw();
+            }
+            continue;
+        }
+
+        if (!pressed && button == LM_BUTTON_LEFT && menu_open != MENU_NONE) {
+            int hit = menu_open == MENU_GAME ? game_menu_hit(pos.x, pos.y)
+                                             : help_menu_hit(pos.x, pos.y);
+            if (hit == 0 && menu_open == MENU_GAME) {
+                reset_game();
+                menu_open = MENU_NONE;
+                draw();
+                last_draw_time = time(NULL);
+                continue;
+            }
+            menu_open = MENU_NONE;
+            draw();
             continue;
         }
 
