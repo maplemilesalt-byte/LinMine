@@ -240,8 +240,7 @@ static gboolean on_draw(GtkWidget *widget, cairo_t *cr, gpointer user_data)
     draw_border(cr, (LMRect){GRID_X + 5, TOP_LED_Y - 1, LED_W * 3 + 2, LED_H + 2},
                 0xff808080u, 0xffffffffu);
     draw_border(cr, (LMRect){WIDTH - 12 - LED_W * 3 - 2, TOP_LED_Y - 1,
-                             LED_W * 3 + 2, LED_H + 2},
-                0xff808080u, 0xffffffffu);
+                             LED_W * 3 + 2, LED_H + 2}, 0xff808080u, 0xffffffffu);
     lm_graphics_draw_sprite(cr, LM_SHEET_BUTTON, face,
                             (WIDTH - BUTTON_W) / 2, TOP_LED_Y,
                             BUTTON_W, BUTTON_H);
@@ -258,15 +257,14 @@ static gboolean on_draw(GtkWidget *widget, cairo_t *cr, gpointer user_data)
             Cell *c = &board[y][x];
             int index;
 
-            if (c->open) {
+            if (c->open)
                 index = c->mine ? BLOCK_HIT_MINE : block_sprite_for_number(c->number);
-            } else if (c->state == 1) {
+            else if (c->state == 1)
                 index = game_over && !c->mine ? BLOCK_WRONG_FLAG : BLOCK_FLAG;
-            } else if (c->state == 2) {
+            else if (c->state == 2)
                 index = BLOCK_QUESTION_COVERED;
-            } else {
+            else
                 index = game_over && c->mine ? BLOCK_MINE : BLOCK_COVERED;
-            }
 
             lm_graphics_draw_sprite(cr, LM_SHEET_BLOCKS, index,
                                     GRID_X + x * TILE,
@@ -502,7 +500,6 @@ int main(int argc, char **argv)
     GtkWidget *bar;
     GtkWidget *drawing_area;
     GtkCssProvider *css;
-    GdkRGBA clear_color;
 
     gtk_init(&argc, &argv);
     srand((unsigned)time(NULL));
@@ -512,7 +509,6 @@ int main(int argc, char **argv)
 
     window = lm_graphics_window();
     drawing_area = lm_graphics_drawing_area();
-    gtk_container_remove(GTK_CONTAINER(window), drawing_area);
 
     box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
     bar = make_menu_bar(window);
@@ -536,12 +532,6 @@ int main(int argc, char **argv)
     gtk_style_context_add_provider_for_screen(gdk_screen_get_default(),
         GTK_STYLE_PROVIDER(css), GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
     g_object_unref(css);
-
-    clear_color.red = 0.75;
-    clear_color.green = 0.75;
-    clear_color.blue = 0.75;
-    clear_color.alpha = 1.0;
-    gtk_widget_override_background_color(drawing_area, GTK_STATE_FLAG_NORMAL, &clear_color);
 
     if (!lm_graphics_load_assets("../winmine/bmp", 1)) {
         fprintf(stderr, "LinMine: failed to load WinMine BMP assets\n");
