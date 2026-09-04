@@ -39,9 +39,5 @@ parts:
       install -Dm755 linux/linmine "$CRAFT_PART_INSTALL/linux/linmine"
       install -Dm644 linux/winmine-1.png "$CRAFT_PART_INSTALL/linux/winmine-1.png"
       cp -a winmine "$CRAFT_PART_INSTALL/winmine"
-      cat > "$CRAFT_PART_INSTALL/bin/linmine" <<'EOF'
-#!/bin/sh
-cd "$SNAP/linux" || exit 1
-exec ./linmine "$@"
-EOF
+      printf '%s\n' '#!/bin/sh' 'cd "$SNAP/linux" || exit 1' 'exec ./linmine "$@"' > "$CRAFT_PART_INSTALL/bin/linmine"
       chmod 755 "$CRAFT_PART_INSTALL/bin/linmine"
