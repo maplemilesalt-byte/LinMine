@@ -44,10 +44,10 @@ typedef enum { PRESET_BEGINNER, PRESET_INTERMEDIATE, PRESET_EXPERT } GamePreset;
 
 static Cell board[MAX_ROWS][MAX_COLS];
 static int game_cols=BEGINNER_COLS, game_rows=BEGINNER_ROWS, mine_count=BEGINNER_MINES;
-static int game_over, won, remaining, flags, face_pressed, marks_enabled=1;
+static int game_over, won, remaining, flags, face_pressed, marks_enabled=1, tablet_mode=0;
 static time_t start_time;
 static GtkWidget *window_widget, *drawing_area_widget;
-static GtkWidget *beginner_item, *intermediate_item, *expert_item;
+static GtkWidget *beginner_item, *intermediate_item, *expert_item, *tablet_item;
 
 static int game_width(void){return GRID_X+game_cols*TILE+BORDER;}
 static int game_height(void){return GRID_Y+game_rows*TILE+BORDER;}
@@ -78,13 +78,22 @@ static void set_preset(GamePreset p)
     else if(p==PRESET_INTERMEDIATE){game_cols=INTERMEDIATE_COLS;game_rows=INTERMEDIATE_ROWS;mine_count=INTERMEDIATE_MINES;}
     else {game_cols=EXPERT_COLS;game_rows=EXPERT_ROWS;mine_count=EXPERT_MINES;}
     reset_game();
-    if(window_widget&&drawing_area_widget){lm_graphics_resize(game_width(),game_height());queue_draw();}
+    if(window_widget&&drawing_area_widget){lm_graphics_resize(game_width(),game_height());if(!tablet_mode)gtk_window_resize(GTK_WINDOW(window_widget),game_width(),game_height());queue_draw();}
     update_preset_menu(p);
 }
 
 static void on_beginner(GtkCheckMenuItem*i,gpointer d){(void)d;if(gtk_check_menu_item_get_active(i))set_preset(PRESET_BEGINNER);}
 static void on_intermediate(GtkCheckMenuItem*i,gpointer d){(void)d;if(gtk_check_menu_item_get_active(i))set_preset(PRESET_INTERMEDIATE);}
 static void on_expert(GtkCheckMenuItem*i,gpointer d){(void)d;if(gtk_check_menu_item_get_active(i))set_preset(PRESET_EXPERT);}
+
+static void on_tablet_mode(GtkCheckMenuItem*i,gpointer d)
+{
+    (void)d;
+    tablet_mode=gtk_check_menu_item_get_active(i)!=FALSE;
+    if(tablet_mode) gtk_window_maximize(GTK_WINDOW(window_widget));
+    else {gtk_window_unmaximize(GTK_WINDOW(window_widget));gtk_window_resize(GTK_WINDOW(window_widget),game_width(),game_height());}
+    queue_draw();
+}
 
 static void open_cell(int x,int y)
 {
@@ -129,7 +138,7 @@ static void on_exit_game(GtkWidget*w,gpointer d){(void)w;(void)d;gtk_main_quit()
 static void on_window_destroy(GtkWidget*w,gpointer d){(void)w;(void)d;gtk_main_quit();}
 static void on_marks(GtkCheckMenuItem*i,gpointer d){(void)d;marks_enabled=gtk_check_menu_item_get_active(i)!=FALSE;}
 static void show_info(GtkWidget*p,const char*t,const char*b){GtkWidget*d=gtk_message_dialog_new(GTK_WINDOW(p),GTK_DIALOG_MODAL,GTK_MESSAGE_INFO,GTK_BUTTONS_CLOSE,"%s",t);gtk_message_dialog_format_secondary_text(GTK_MESSAGE_DIALOG(d),"%s",b);gtk_dialog_run(GTK_DIALOG(d));gtk_widget_destroy(d);}
-static void on_help(GtkWidget*w,gpointer d){(void)w;show_info(GTK_WIDGET(d),"Minesweeper Help","Left click opens a square. Right click marks it.\nF2 starts a new game.\nChoose a difficulty from Game.");}
+static void on_help(GtkWidget*w,gpointer d){(void)w;show_info(GTK_WIDGET(d),"Minesweeper Help","Left click opens a square. Right click marks it.\nF2 starts a new game.\nChoose a difficulty from Game.\nTablet Mode maximizes the game window for touchscreen use.");}
 static void on_about(GtkWidget*w,gpointer d){(void)w;show_info(GTK_WIDGET(d),"About Minesweeper","Linux port of the classic Windows Minesweeper.\nLinMine");}
 
 static void on_custom(GtkWidget*w,gpointer data)
@@ -141,7 +150,7 @@ static void on_custom(GtkWidget*w,gpointer data)
     l=gtk_label_new("Height:");hs=gtk_spin_button_new_with_range(8,25,1);gtk_spin_button_set_value(GTK_SPIN_BUTTON(hs),game_rows);gtk_grid_attach(GTK_GRID(grid),l,0,1,1,1);gtk_grid_attach(GTK_GRID(grid),hs,1,1,1,1);
     l=gtk_label_new("Mines:");ms=gtk_spin_button_new_with_range(1,999,1);gtk_spin_button_set_value(GTK_SPIN_BUTTON(ms),mine_count);gtk_grid_attach(GTK_GRID(grid),l,0,2,1,1);gtk_grid_attach(GTK_GRID(grid),ms,1,2,1,1);
     gtk_box_pack_start(GTK_BOX(gtk_dialog_get_content_area(GTK_DIALOG(d))),grid,TRUE,TRUE,0);gtk_widget_show_all(d);r=gtk_dialog_run(GTK_DIALOG(d));
-    if(r==GTK_RESPONSE_OK){int c=gtk_spin_button_get_value_as_int(GTK_SPIN_BUTTON(ws)),rr=gtk_spin_button_get_value_as_int(GTK_SPIN_BUTTON(hs)),m=gtk_spin_button_get_value_as_int(GTK_SPIN_BUTTON(ms));if(m>=c*rr)m=c*rr-1;game_cols=c;game_rows=rr;mine_count=m;reset_game();lm_graphics_resize(game_width(),game_height());queue_draw();}
+    if(r==GTK_RESPONSE_OK){int c=gtk_spin_button_get_value_as_int(GTK_SPIN_BUTTON(ws)),rr=gtk_spin_button_get_value_as_int(GTK_SPIN_BUTTON(hs)),m=gtk_spin_button_get_value_as_int(GTK_SPIN_BUTTON(ms));if(m>=c*rr)m=c*rr-1;game_cols=c;game_rows=rr;mine_count=m;reset_game();lm_graphics_resize(game_width(),game_height());if(!tablet_mode)gtk_window_resize(GTK_WINDOW(window_widget),game_width(),game_height());queue_draw();}
     gtk_widget_destroy(d);
 }
 
@@ -152,6 +161,7 @@ static GtkWidget*make_menu_bar(GtkWidget*p)
     i=gtk_menu_item_new_with_label("New");gtk_widget_add_accelerator(i,"activate",a,GDK_KEY_F2,0,GTK_ACCEL_VISIBLE);g_signal_connect(i,"activate",G_CALLBACK(on_new_game),NULL);gtk_menu_shell_append(GTK_MENU_SHELL(gm),i);gtk_menu_shell_append(GTK_MENU_SHELL(gm),gtk_separator_menu_item_new());
     beginner_item=gtk_radio_menu_item_new(NULL);gtk_menu_item_set_label(GTK_MENU_ITEM(beginner_item),"Beginner");intermediate_item=gtk_radio_menu_item_new_from_widget(GTK_RADIO_MENU_ITEM(beginner_item));gtk_menu_item_set_label(GTK_MENU_ITEM(intermediate_item),"Intermediate");expert_item=gtk_radio_menu_item_new_from_widget(GTK_RADIO_MENU_ITEM(beginner_item));gtk_menu_item_set_label(GTK_MENU_ITEM(expert_item),"Expert");g_signal_connect(beginner_item,"toggled",G_CALLBACK(on_beginner),NULL);g_signal_connect(intermediate_item,"toggled",G_CALLBACK(on_intermediate),NULL);g_signal_connect(expert_item,"toggled",G_CALLBACK(on_expert),NULL);gtk_menu_shell_append(GTK_MENU_SHELL(gm),beginner_item);gtk_menu_shell_append(GTK_MENU_SHELL(gm),intermediate_item);gtk_menu_shell_append(GTK_MENU_SHELL(gm),expert_item);
     i=gtk_menu_item_new_with_label("Custom...");g_signal_connect(i,"activate",G_CALLBACK(on_custom),p);gtk_menu_shell_append(GTK_MENU_SHELL(gm),i);gtk_menu_shell_append(GTK_MENU_SHELL(gm),gtk_separator_menu_item_new());
+    tablet_item=gtk_check_menu_item_new_with_label("Tablet Mode");gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(tablet_item),FALSE);g_signal_connect(tablet_item,"toggled",G_CALLBACK(on_tablet_mode),NULL);gtk_menu_shell_append(GTK_MENU_SHELL(gm),tablet_item);
     i=gtk_check_menu_item_new_with_label("Marks (?)");gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(i),TRUE);g_signal_connect(i,"toggled",G_CALLBACK(on_marks),NULL);gtk_menu_shell_append(GTK_MENU_SHELL(gm),i);gtk_menu_shell_append(GTK_MENU_SHELL(gm),gtk_separator_menu_item_new());
     i=gtk_menu_item_new_with_label("Exit");g_signal_connect(i,"activate",G_CALLBACK(on_exit_game),NULL);gtk_menu_shell_append(GTK_MENU_SHELL(gm),i);
     i=gtk_menu_item_new_with_label("Contents");gtk_widget_add_accelerator(i,"activate",a,GDK_KEY_F1,0,GTK_ACCEL_VISIBLE);g_signal_connect(i,"activate",G_CALLBACK(on_help),p);gtk_menu_shell_append(GTK_MENU_SHELL(hm),i);i=gtk_menu_item_new_with_label("Using Help");g_signal_connect(i,"activate",G_CALLBACK(on_help),p);gtk_menu_shell_append(GTK_MENU_SHELL(hm),i);gtk_menu_shell_append(GTK_MENU_SHELL(hm),gtk_separator_menu_item_new());i=gtk_menu_item_new_with_label("About Minesweeper...");g_signal_connect(i,"activate",G_CALLBACK(on_about),p);gtk_menu_shell_append(GTK_MENU_SHELL(hm),i);
