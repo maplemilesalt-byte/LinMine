@@ -20,6 +20,7 @@ int lm_graphics_init(int width, int height, const char *title);
 void lm_graphics_shutdown(void);
 GtkWidget *lm_graphics_window(void);
 GtkWidget *lm_graphics_drawing_area(void);
+void lm_graphics_resize(int width, int height);
 int lm_graphics_load_assets(const char *dir, int color);
 void lm_graphics_free_assets(void);
 void lm_graphics_queue_draw(void);
