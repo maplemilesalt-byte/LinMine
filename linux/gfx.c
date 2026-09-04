@@ -24,7 +24,6 @@ static SDL_Texture *lm_load_bmp(const char *dir, const char *name)
     char path[1024];
     SDL_Surface *surface;
     SDL_Texture *texture;
-
     if (!lm_path(path, sizeof(path), dir, name)) return NULL;
     surface = SDL_LoadBMP(path);
     if (!surface) {
@@ -40,16 +39,27 @@ static SDL_Texture *lm_load_bmp(const char *dir, const char *name)
 
 int lm_graphics_init(int width, int height, const char *title)
 {
-    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) != 0) return 0;
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) != 0) {
+        fprintf(stderr, "LinMine: SDL_Init: %s\n", SDL_GetError());
+        return 0;
+    }
     lm_window = SDL_CreateWindow(title, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
                                  width, height, SDL_WINDOW_SHOWN);
-    if (!lm_window) { SDL_Quit(); return 0; }
+    if (!lm_window) {
+        fprintf(stderr, "LinMine: SDL_CreateWindow: %s\n", SDL_GetError());
+        SDL_Quit();
+        return 0;
+    }
     lm_renderer = SDL_CreateRenderer(lm_window, -1,
                                      SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
     if (!lm_renderer)
         lm_renderer = SDL_CreateRenderer(lm_window, -1, SDL_RENDERER_SOFTWARE);
     if (!lm_renderer) {
-        SDL_DestroyWindow(lm_window); lm_window = NULL; SDL_Quit(); return 0;
+        fprintf(stderr, "LinMine: SDL_CreateRenderer: %s\n", SDL_GetError());
+        SDL_DestroyWindow(lm_window);
+        lm_window = NULL;
+        SDL_Quit();
+        return 0;
     }
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "0");
     lm_closed = 0;
@@ -91,6 +101,7 @@ void lm_graphics_free_assets(void)
 void lm_graphics_begin(void) {}
 void lm_graphics_end(void) {}
 void lm_graphics_present(void) { if (lm_renderer) SDL_RenderPresent(lm_renderer); }
+void lm_graphics_delay(unsigned int milliseconds) { SDL_Delay(milliseconds); }
 
 static void lm_color(unsigned int pixel)
 {
