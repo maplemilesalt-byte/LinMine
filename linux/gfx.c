@@ -13,7 +13,6 @@
 #define LM_LED_COUNT 12
 #define LM_BUTTON_W 24
 #define LM_BUTTON_H 24
-#define LM_BUTTON_COUNT 5
 
 static GtkWidget *lm_window;
 static GtkWidget *lm_drawing_area;
@@ -22,14 +21,11 @@ static GdkPixbuf *lm_sheets[LM_SHEET_COUNT];
 static const char *lm_path(char *dst, size_t size, const char *dir, const char *name)
 {
     int n;
-
     if (!dir || !name || size == 0)
         return NULL;
-
     n = snprintf(dst, size, "%s/%s", dir, name);
     if (n < 0 || (size_t)n >= size)
         return NULL;
-
     return dst;
 }
 
@@ -50,7 +46,6 @@ static GdkPixbuf *lm_load_bmp(const char *dir, const char *name)
             g_error_free(error);
         return NULL;
     }
-
     return pixbuf;
 }
 
@@ -66,7 +61,6 @@ int lm_graphics_init(int width, int height, const char *title)
     lm_drawing_area = gtk_drawing_area_new();
     gtk_widget_set_size_request(lm_drawing_area, width, height);
     gtk_widget_set_can_focus(lm_drawing_area, TRUE);
-
     return 1;
 }
 
@@ -89,10 +83,18 @@ GtkWidget *lm_graphics_drawing_area(void)
     return lm_drawing_area;
 }
 
+void lm_graphics_resize(int width, int height)
+{
+    if (!lm_window || !lm_drawing_area)
+        return;
+
+    gtk_widget_set_size_request(lm_drawing_area, width, height);
+    gtk_window_resize(GTK_WINDOW(lm_window), width, height + 24);
+}
+
 int lm_graphics_load_assets(const char *dir, int color)
 {
     lm_graphics_free_assets();
-
     lm_sheets[LM_SHEET_BLOCKS] = lm_load_bmp(dir, color ? "blocks.bmp" : "blocksbw.bmp");
     lm_sheets[LM_SHEET_LED] = lm_load_bmp(dir, color ? "led.bmp" : "ledbw.bmp");
     lm_sheets[LM_SHEET_BUTTON] = lm_load_bmp(dir, color ? "button.bmp" : "buttonbw.bmp");
@@ -102,14 +104,12 @@ int lm_graphics_load_assets(const char *dir, int color)
         lm_graphics_free_assets();
         return 0;
     }
-
     return 1;
 }
 
 void lm_graphics_free_assets(void)
 {
     int i;
-
     for (i = 0; i < LM_SHEET_COUNT; ++i) {
         if (lm_sheets[i])
             g_object_unref(lm_sheets[i]);
@@ -126,10 +126,8 @@ void lm_graphics_queue_draw(void)
 static void lm_set_source(cairo_t *cr, unsigned int pixel)
 {
     double alpha = ((pixel >> 24) & 0xff) / 255.0;
-
     if (alpha == 0.0)
         alpha = 1.0;
-
     cairo_set_source_rgba(cr,
                           ((pixel >> 16) & 0xff) / 255.0,
                           ((pixel >> 8) & 0xff) / 255.0,
@@ -164,19 +162,12 @@ void lm_graphics_draw_rect(cairo_t *cr, LMRect rect, unsigned int pixel)
 void lm_graphics_draw_sprite(cairo_t *cr, LMSpriteSheet sheet, int index,
                              int x, int y, int width, int height)
 {
-    static const int widths[LM_SHEET_COUNT] = {
-        LM_BLOCK_W, LM_LED_W, LM_BUTTON_W
-    };
-    static const int heights[LM_SHEET_COUNT] = {
-        LM_BLOCK_H, LM_LED_H, LM_BUTTON_H
-    };
-    static const int counts[LM_SHEET_COUNT] = {
-        LM_BLOCK_COUNT, LM_LED_COUNT, LM_BUTTON_COUNT
-    };
+    static const int widths[LM_SHEET_COUNT] = { LM_BLOCK_W, LM_LED_W, LM_BUTTON_W };
+    static const int heights[LM_SHEET_COUNT] = { LM_BLOCK_H, LM_LED_H, LM_BUTTON_H };
+    static const int counts[LM_SHEET_COUNT] = { LM_BLOCK_COUNT, LM_LED_COUNT, LM_BUTTON_COUNT };
     GdkPixbuf *pixbuf;
     int src_y;
-    double sx;
-    double sy;
+    double sx, sy;
 
     if (!cr || sheet < 0 || sheet >= LM_SHEET_COUNT || index < 0 ||
         index >= counts[sheet] || width <= 0 || height <= 0)
