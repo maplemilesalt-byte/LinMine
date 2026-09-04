@@ -15,6 +15,8 @@ modules:
     build-commands:
       - make -C linux
       - install -Dm755 linux/linmine /app/linux/linmine
+      - install -Dm644 linux/winmine-1.png /app/linux/winmine-1.png
+      - install -Dm644 linux/winmine-1.png /app/share/icons/hicolor/256x256/apps/io.github.maplemilesalt.LinMine.png
       - cp -a winmine /app/winmine
       - install -Dm755 flatpak/linmine-flatpak /app/bin/linmine-flatpak
       - install -Dm644 flatpak/io.github.maplemilesalt.LinMine.desktop /app/share/applications/io.github.maplemilesalt.LinMine.desktop
