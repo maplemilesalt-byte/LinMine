@@ -126,6 +126,7 @@ static gboolean on_draw(GtkWidget*w,cairo_t*cr,gpointer data)
 
 static void on_new_game(GtkWidget*w,gpointer d){(void)w;(void)d;reset_game();queue_draw();}
 static void on_exit_game(GtkWidget*w,gpointer d){(void)w;(void)d;gtk_main_quit();}
+static void on_window_destroy(GtkWidget*w,gpointer d){(void)w;(void)d;gtk_main_quit();}
 static void on_marks(GtkCheckMenuItem*i,gpointer d){(void)d;marks_enabled=gtk_check_menu_item_get_active(i)!=FALSE;}
 static void show_info(GtkWidget*p,const char*t,const char*b){GtkWidget*d=gtk_message_dialog_new(GTK_WINDOW(p),GTK_DIALOG_MODAL,GTK_MESSAGE_INFO,GTK_BUTTONS_CLOSE,"%s",t);gtk_message_dialog_format_secondary_text(GTK_MESSAGE_DIALOG(d),"%s",b);gtk_dialog_run(GTK_DIALOG(d));gtk_widget_destroy(d);}
 static void on_help(GtkWidget*w,gpointer d){(void)w;show_info(GTK_WIDGET(d),"Minesweeper Help","Left click opens a square. Right click marks it.\nF2 starts a new game.\nChoose a difficulty from Game.");}
@@ -168,6 +169,7 @@ int main(int argc,char**argv)
     if(!lm_graphics_init(game_width(),game_height(),"Minesweeper"))return 1;
     window_widget=lm_graphics_window();drawing_area_widget=lm_graphics_drawing_area();da=drawing_area_widget;
     box=gtk_box_new(GTK_ORIENTATION_VERTICAL,0);bar=make_menu_bar(window_widget);gtk_box_pack_start(GTK_BOX(box),bar,FALSE,FALSE,0);gtk_box_pack_start(GTK_BOX(box),da,FALSE,FALSE,0);gtk_container_add(GTK_CONTAINER(window_widget),box);
+    g_signal_connect(window_widget,"destroy",G_CALLBACK(on_window_destroy),NULL);
     gtk_widget_add_events(da,GDK_BUTTON_PRESS_MASK|GDK_BUTTON_RELEASE_MASK);g_signal_connect(da,"draw",G_CALLBACK(on_draw),NULL);g_signal_connect(da,"button-press-event",G_CALLBACK(on_button_press),NULL);g_signal_connect(da,"button-release-event",G_CALLBACK(on_button_release),NULL);
     css=gtk_css_provider_new();gtk_css_provider_load_from_data(css,"menubar { background: #c0c0c0; padding: 0; color: #000000; } menubar menuitem { color: #000000; } menu { background: #c0c0c0; color: #000000; } menu menuitem { color: #000000; padding: 3px 18px 3px 6px; }",-1,NULL);gtk_style_context_add_provider_for_screen(gdk_screen_get_default(),GTK_STYLE_PROVIDER(css),GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);g_object_unref(css);
     if(!lm_graphics_load_assets("../winmine/bmp",1)){fprintf(stderr,"LinMine: failed to load WinMine BMP assets\n");lm_graphics_shutdown();return 1;}
