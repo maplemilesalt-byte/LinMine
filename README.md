@@ -58,3 +58,7 @@ Run it with:
 - `linux/Makefile` — Linux build rules.
 
 The Linux layer is being built so the original NT game logic can be connected without making the game logic depend directly on SDL, X11, or Wayland.
+
+## Todo
+* Compile Snap version
+* Fix my kernel panic
