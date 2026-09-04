@@ -1,0 +1,23 @@
+app-id: io.github.maplemilesalt.LinMine
+runtime: org.gnome.Platform
+runtime-version: '50'
+sdk: org.gnome.Sdk
+command: linmine-flatpak
+
+finish-args:
+  - --share=ipc
+  - --socket=x11
+  - --socket=wayland
+
+modules:
+  - name: linmine
+    buildsystem: simple
+    build-commands:
+      - make -C linux
+      - install -Dm755 linux/linmine /app/linux/linmine
+      - cp -a winmine /app/winmine
+      - install -Dm755 flatpak/linmine-flatpak /app/bin/linmine-flatpak
+      - install -Dm644 flatpak/io.github.maplemilesalt.LinMine.desktop /app/share/applications/io.github.maplemilesalt.LinMine.desktop
+    sources:
+      - type: dir
+        path: ..
