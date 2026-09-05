@@ -47,6 +47,7 @@ static Cell board[MAX_ROWS][MAX_COLS];
 static int game_cols=BEGINNER_COLS, game_rows=BEGINNER_ROWS, mine_count=BEGINNER_MINES;
 static int game_over, won, remaining, flags, face_pressed, marks_enabled=1;
 static int pressed_cell_x=-1, pressed_cell_y=-1;
+static int mouse_grabbed;
 static time_t start_time;
 static GtkWidget *window_widget, *drawing_area_widget;
 static GtkWidget *beginner_item, *intermediate_item, *expert_item;
@@ -56,6 +57,14 @@ static int game_height(void){return GRID_Y+game_rows*TILE+BORDER;}
 static int block_sprite_for_number(int n){return n<=0?BLOCK_OPEN_0:15-n;}
 static int led_sprite_for_digit(int d){return d<0||d>9?LED_EMPTY:LED_9+(9-d);}
 static void queue_draw(void){lm_graphics_queue_draw();}
+
+static void release_mouse_grab(GtkWidget *w)
+{
+    if(mouse_grabbed){
+        gtk_grab_remove(w);
+        mouse_grabbed=0;
+    }
+}
 
 static void reset_game(void)
 {
@@ -162,15 +171,19 @@ static GtkWidget*make_menu_bar(GtkWidget*p)
 
 static gboolean on_button_press(GtkWidget*w,GdkEventButton*e,gpointer d)
 {
-    int x=(int)e->x,y=(int)e->y;(void)w;(void)d;
+    int x=(int)e->x,y=(int)e->y;(void)d;
     if(e->button==GDK_BUTTON_PRIMARY){
         int fx=(game_width()-BUTTON_W)/2;
-        if(x>=fx&&x<fx+BUTTON_W&&y>=TOP_LED_Y&&y<TOP_LED_Y+BUTTON_H){face_pressed=1;queue_draw();return TRUE;}
+        if(x>=fx&&x<fx+BUTTON_W&&y>=TOP_LED_Y&&y<TOP_LED_Y+BUTTON_H){
+            gtk_grab_add(w);mouse_grabbed=1;
+            face_pressed=1;queue_draw();return TRUE;
+        }
     }
     if(y>=GRID_Y&&x>=GRID_X&&x<GRID_X+game_cols*TILE&&y<GRID_Y+game_rows*TILE){
         int cx=(x-GRID_X)/TILE,cy=(y-GRID_Y)/TILE;
         if(e->button==GDK_BUTTON_PRIMARY){
             if(!game_over&&!board[cy][cx].open&&!board[cy][cx].state){
+                gtk_grab_add(w);mouse_grabbed=1;
                 pressed_cell_x=cx;pressed_cell_y=cy;face_pressed=1;
             }
         }else if(e->button==GDK_BUTTON_SECONDARY)toggle_mark(cx,cy);
@@ -181,19 +194,23 @@ static gboolean on_button_press(GtkWidget*w,GdkEventButton*e,gpointer d)
 
 static gboolean on_button_release(GtkWidget*w,GdkEventButton*e,gpointer d)
 {
-    int x=(int)e->x,y=(int)e->y,fx=(game_width()-BUTTON_W)/2;(void)w;(void)d;
+    int x=(int)e->x,y=(int)e->y,fx=(game_width()-BUTTON_W)/2;(void)d;
     if(e->button==GDK_BUTTON_PRIMARY&&face_pressed){
-        if(x>=fx&&x<fx+BUTTON_W&&y>=TOP_LED_Y&&y<TOP_LED_Y+BUTTON_H){reset_game();face_pressed=0;pressed_cell_x=pressed_cell_y=-1;queue_draw();return TRUE;}
+        if(x>=fx&&x<fx+BUTTON_W&&y>=TOP_LED_Y&&y<TOP_LED_Y+BUTTON_H){
+            release_mouse_grab(w);reset_game();face_pressed=0;pressed_cell_x=pressed_cell_y=-1;queue_draw();return TRUE;
+        }
         if(pressed_cell_x>=0&&pressed_cell_y>=0){
             int cx=-1,cy=-1;
             if(x>=GRID_X&&x<GRID_X+game_cols*TILE&&y>=GRID_Y&&y<GRID_Y+game_rows*TILE){cx=(x-GRID_X)/TILE;cy=(y-GRID_Y)/TILE;}
             face_pressed=0;queue_draw();
+            release_mouse_grab(w);
             if(cx==pressed_cell_x&&cy==pressed_cell_y)open_cell(pressed_cell_x,pressed_cell_y);
             pressed_cell_x=pressed_cell_y=-1;
             queue_draw();return TRUE;
         }
-        face_pressed=0;queue_draw();return TRUE;
+        face_pressed=0;release_mouse_grab(w);queue_draw();return TRUE;
     }
+    release_mouse_grab(w);
     return FALSE;
 }
 
