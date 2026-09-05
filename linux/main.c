@@ -131,7 +131,15 @@ static gboolean on_draw(GtkWidget*w,cairo_t*cr,gpointer data)
     lm_graphics_draw_sprite(cr,LM_SHEET_BUTTON,face,(game_width()-BUTTON_W)/2,TOP_LED_Y,BUTTON_W,BUTTON_H);
     draw_leds(cr,GRID_X+7,mine_count-flags);draw_leds(cr,game_width()-12-LED_W*3,elapsed);
     draw_border(cr,(LMRect){GRID_X-3,GRID_Y-3,game_cols*TILE+6,game_rows*TILE+6},0xff808080u,0xffffffffu);
-    for(y=0;y<game_rows;y++)for(x=0;x<game_cols;x++){Cell*c=&board[y][x];int i;if(c->open)i=c->mine?BLOCK_HIT_MINE:block_sprite_for_number(c->number);else if(c->state==1)i=game_over&&!c->mine?BLOCK_WRONG_FLAG:BLOCK_FLAG;else if(c->state==2)i=BLOCK_QUESTION_COVERED;else i=game_over&&c->mine?BLOCK_MINE:BLOCK_COVERED;lm_graphics_draw_sprite(cr,LM_SHEET_BLOCKS,i,GRID_X+x*TILE,GRID_Y+y*TILE,TILE,TILE);}
+    for(y=0;y<game_rows;y++)for(x=0;x<game_cols;x++){
+        Cell*c=&board[y][x];int i;
+        if(c->open)i=c->mine?BLOCK_HIT_MINE:block_sprite_for_number(c->number);
+        else if(c->state==1)i=game_over&&!c->mine?BLOCK_WRONG_FLAG:BLOCK_FLAG;
+        else if(c->state==2)i=BLOCK_QUESTION_COVERED;
+        else if(face_pressed&&x==pressed_cell_x&&y==pressed_cell_y)i=BLOCK_OPEN_0;
+        else i=game_over&&c->mine?BLOCK_MINE:BLOCK_COVERED;
+        lm_graphics_draw_sprite(cr,LM_SHEET_BLOCKS,i,GRID_X+x*TILE,GRID_Y+y*TILE,TILE,TILE);
+    }
     return FALSE;
 }
 
