@@ -230,7 +230,7 @@ int main(int argc,char**argv)
     gtk_init(&argc,&argv);srand((unsigned)time(NULL));
     if(!lm_graphics_init(game_width(),game_height(),"Minesweeper"))return 1;
     window_widget=lm_graphics_window();drawing_area_widget=lm_graphics_drawing_area();da=drawing_area_widget;
-    gtk_window_set_icon_from_file(GTK_WINDOW(window_widget),"winmine-1.png",&icon_error);
+    gtk_window_set_icon_from_file(GTK_WINDOW(window_widget),"linmine.png",&icon_error);
     if(icon_error){fprintf(stderr,"LinMine: cannot load window icon: %s\n",icon_error->message);g_error_free(icon_error);icon_error=NULL;}
     box=gtk_box_new(GTK_ORIENTATION_VERTICAL,0);bar=make_menu_bar(window_widget);gtk_box_pack_start(GTK_BOX(box),bar,FALSE,FALSE,0);gtk_box_pack_start(GTK_BOX(box),da,FALSE,FALSE,0);gtk_container_add(GTK_CONTAINER(window_widget),box);
     g_signal_connect(window_widget,"destroy",G_CALLBACK(on_window_destroy),NULL);
