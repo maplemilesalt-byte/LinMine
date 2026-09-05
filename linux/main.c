@@ -26,6 +26,7 @@
 #define BUTTON_HAPPY_CLICKED 0
 #define BUTTON_SUNGLASSES 1
 #define BUTTON_DEAD 2
+#define BUTTON_PRESSED 3
 #define BUTTON_NORMAL 4
 #define LED_EMPTY 1
 #define LED_9 2
@@ -45,6 +46,7 @@ typedef enum { PRESET_BEGINNER, PRESET_INTERMEDIATE, PRESET_EXPERT } GamePreset;
 static Cell board[MAX_ROWS][MAX_COLS];
 static int game_cols=BEGINNER_COLS, game_rows=BEGINNER_ROWS, mine_count=BEGINNER_MINES;
 static int game_over, won, remaining, flags, face_pressed, marks_enabled=1;
+static int pressed_cell_x=-1, pressed_cell_y=-1;
 static time_t start_time;
 static GtkWidget *window_widget, *drawing_area_widget;
 static GtkWidget *beginner_item, *intermediate_item, *expert_item;
@@ -62,7 +64,7 @@ static void reset_game(void)
     while(mines<mine_count){x=rand()%game_cols;y=rand()%game_rows;if(!board[y][x].mine){board[y][x].mine=1;mines++;}}
     for(y=0;y<game_rows;y++)for(x=0;x<game_cols;x++)if(!board[y][x].mine)
         for(ny=y-1;ny<=y+1;ny++)for(nx=x-1;nx<=x+1;nx++)if(nx>=0&&nx<game_cols&&ny>=0&&ny<game_rows&&board[ny][nx].mine)board[y][x].number++;
-    game_over=won=flags=face_pressed=0;remaining=game_cols*game_rows-mine_count;start_time=time(NULL);
+    game_over=won=flags=face_pressed=0;pressed_cell_x=pressed_cell_y=-1;remaining=game_cols*game_rows-mine_count;start_time=time(NULL);
 }
 
 static void update_preset_menu(GamePreset p)
@@ -110,7 +112,7 @@ static void draw_leds(cairo_t*cr,int x,int value){int h,t,o;value%=1000;if(value
 static gboolean on_draw(GtkWidget*w,cairo_t*cr,gpointer data)
 {
     int x,y,elapsed=(int)(time(NULL)-start_time),face;(void)w;(void)data;
-    face=game_over?(won?BUTTON_SUNGLASSES:BUTTON_DEAD):(face_pressed?BUTTON_HAPPY_CLICKED:BUTTON_NORMAL);
+    face=game_over?(won?BUTTON_SUNGLASSES:BUTTON_DEAD):(face_pressed?BUTTON_PRESSED:BUTTON_NORMAL);
     lm_graphics_clear(cr,0xffc0c0c0u,game_width(),game_height());
     draw_border(cr,(LMRect){0,0,game_width(),game_height()},0xffffffffu,0xff808080u);
     draw_border(cr,(LMRect){7,7,game_width()-14,46},0xff808080u,0xffffffffu);
@@ -158,8 +160,43 @@ static GtkWidget*make_menu_bar(GtkWidget*p)
     return bar;
 }
 
-static gboolean on_button_press(GtkWidget*w,GdkEventButton*e,gpointer d){int x=(int)e->x,y=(int)e->y;(void)w;(void)d;if(e->button==GDK_BUTTON_PRIMARY){int fx=(game_width()-BUTTON_W)/2;if(x>=fx&&x<fx+BUTTON_W&&y>=TOP_LED_Y&&y<TOP_LED_Y+BUTTON_H){face_pressed=1;queue_draw();return TRUE;}}if(y>=GRID_Y&&x>=GRID_X&&x<GRID_X+game_cols*TILE&&y<GRID_Y+game_rows*TILE){int cx=(x-GRID_X)/TILE,cy=(y-GRID_Y)/TILE;if(e->button==GDK_BUTTON_PRIMARY)open_cell(cx,cy);else if(e->button==GDK_BUTTON_SECONDARY)toggle_mark(cx,cy);queue_draw();return TRUE;}return FALSE;}
-static gboolean on_button_release(GtkWidget*w,GdkEventButton*e,gpointer d){int x=(int)e->x,y=(int)e->y,fx=(game_width()-BUTTON_W)/2;(void)w;(void)d;if(e->button==GDK_BUTTON_PRIMARY&&face_pressed){if(x>=fx&&x<fx+BUTTON_W&&y>=TOP_LED_Y&&y<TOP_LED_Y+BUTTON_H)reset_game();face_pressed=0;queue_draw();return TRUE;}return FALSE;}
+static gboolean on_button_press(GtkWidget*w,GdkEventButton*e,gpointer d)
+{
+    int x=(int)e->x,y=(int)e->y;(void)w;(void)d;
+    if(e->button==GDK_BUTTON_PRIMARY){
+        int fx=(game_width()-BUTTON_W)/2;
+        if(x>=fx&&x<fx+BUTTON_W&&y>=TOP_LED_Y&&y<TOP_LED_Y+BUTTON_H){face_pressed=1;queue_draw();return TRUE;}
+    }
+    if(y>=GRID_Y&&x>=GRID_X&&x<GRID_X+game_cols*TILE&&y<GRID_Y+game_rows*TILE){
+        int cx=(x-GRID_X)/TILE,cy=(y-GRID_Y)/TILE;
+        if(e->button==GDK_BUTTON_PRIMARY){
+            if(!game_over&&!board[cy][cx].open&&!board[cy][cx].state){
+                pressed_cell_x=cx;pressed_cell_y=cy;face_pressed=1;
+            }
+        }else if(e->button==GDK_BUTTON_SECONDARY)toggle_mark(cx,cy);
+        queue_draw();return TRUE;
+    }
+    return FALSE;
+}
+
+static gboolean on_button_release(GtkWidget*w,GdkEventButton*e,gpointer d)
+{
+    int x=(int)e->x,y=(int)e->y,fx=(game_width()-BUTTON_W)/2;(void)w;(void)d;
+    if(e->button==GDK_BUTTON_PRIMARY&&face_pressed){
+        if(x>=fx&&x<fx+BUTTON_W&&y>=TOP_LED_Y&&y<TOP_LED_Y+BUTTON_H){reset_game();face_pressed=0;pressed_cell_x=pressed_cell_y=-1;queue_draw();return TRUE;}
+        if(pressed_cell_x>=0&&pressed_cell_y>=0){
+            int cx=-1,cy=-1;
+            if(x>=GRID_X&&x<GRID_X+game_cols*TILE&&y>=GRID_Y&&y<GRID_Y+game_rows*TILE){cx=(x-GRID_X)/TILE;cy=(y-GRID_Y)/TILE;}
+            face_pressed=0;queue_draw();
+            if(cx==pressed_cell_x&&cy==pressed_cell_y)open_cell(pressed_cell_x,pressed_cell_y);
+            pressed_cell_x=pressed_cell_y=-1;
+            queue_draw();return TRUE;
+        }
+        face_pressed=0;queue_draw();return TRUE;
+    }
+    return FALSE;
+}
+
 static gboolean on_timer(gpointer d){(void)d;if(!game_over)queue_draw();return G_SOURCE_CONTINUE;}
 
 int main(int argc,char**argv)
