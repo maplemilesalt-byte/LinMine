@@ -137,8 +137,9 @@ static gboolean on_draw(GtkWidget*w,cairo_t*cr,gpointer data)
     /* Raise the upper inner bevel by 2 px to match the WinXP frame spacing. */
     draw_border(cr,(LMRect){7,5,game_width()-14,46},0xff808080u,0xffffffffu);
     lm_graphics_fill_rect(cr,(LMRect){10,8,game_width()-20,40},0xffc0c0c0u);
-    draw_border(cr,(LMRect){GRID_X+5,TOP_LED_Y-1,LED_W*3+2,LED_H+2},0xff808080u,0xffffffffu);
-    draw_border(cr,(LMRect){game_width()-12-LED_W*3-2,TOP_LED_Y-1,LED_W*3+2,LED_H+2},0xff808080u,0xffffffffu);
+    /* Larger LED counter frames. */
+    draw_border(cr,(LMRect){GRID_X+4,TOP_LED_Y-2,LED_W*3+4,LED_H+4},0xff808080u,0xffffffffu);
+    draw_border(cr,(LMRect){game_width()-12-LED_W*3-4,TOP_LED_Y-2,LED_W*3+4,LED_H+4},0xff808080u,0xffffffffu);
     lm_graphics_draw_sprite(cr,LM_SHEET_BUTTON,face,(game_width()-BUTTON_W)/2,TOP_LED_Y,BUTTON_W,BUTTON_H);
     draw_leds(cr,GRID_X+7,mine_count-flags);draw_leds(cr,game_width()-12-LED_W*3,elapsed);
     draw_border(cr,(LMRect){GRID_X-3,GRID_Y-3,game_cols*TILE+6,game_rows*TILE+6},0xff808080u,0xffffffffu);
