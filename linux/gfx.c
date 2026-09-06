@@ -159,9 +159,9 @@ void lm_graphics_fill_rect(cairo_t *cr, LMRect rect, unsigned int pixel)
 void lm_graphics_draw_rect(cairo_t *cr, LMRect rect, unsigned int pixel)
 {
     lm_set_source(cr, pixel);
-    cairo_set_line_width(cr, 1.0);
-    cairo_rectangle(cr, rect.x + 0.5, rect.y + 0.5,
-                    rect.width - 1.0, rect.height - 1.0);
+    cairo_set_line_width(cr, 2.0);
+    cairo_rectangle(cr, rect.x + 1.0, rect.y + 1.0,
+                    rect.width - 2.0, rect.height - 2.0);
     cairo_stroke(cr);
 }
 
