@@ -141,7 +141,7 @@ static gboolean on_draw(GtkWidget*w,cairo_t*cr,gpointer data)
     draw_border(cr,(LMRect){GRID_X+4,TOP_LED_Y-2,LED_W*3+4,LED_H+4},0xff808080u,0xffffffffu);
     draw_border(cr,(LMRect){game_width()-12-LED_W*3-4,TOP_LED_Y-2,LED_W*3+4,LED_H+4},0xff808080u,0xffffffffu);
     lm_graphics_draw_sprite(cr,LM_SHEET_BUTTON,face,(game_width()-BUTTON_W)/2,TOP_LED_Y,BUTTON_W,BUTTON_H);
-    draw_leds(cr,GRID_X+7,mine_count-flags);draw_leds(cr,game_width()-12-LED_W*3,elapsed);
+    draw_leds(cr,GRID_X+6,mine_count-flags);draw_leds(cr,game_width()-12-LED_W*3-2,elapsed);
     draw_border(cr,(LMRect){GRID_X-3,GRID_Y-3,game_cols*TILE+6,game_rows*TILE+6},0xff808080u,0xffffffffu);
     for(y=0;y<game_rows;y++)for(x=0;x<game_cols;x++){
         Cell*c=&board[y][x];int i;
