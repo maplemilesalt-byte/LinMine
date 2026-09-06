@@ -134,8 +134,9 @@ static gboolean on_draw(GtkWidget*w,cairo_t*cr,gpointer data)
     face=game_over?(won?BUTTON_SUNGLASSES:BUTTON_DEAD):(face_pressed?BUTTON_PRESSED:BUTTON_NORMAL);
     lm_graphics_clear(cr,0xffc0c0c0u,game_width(),game_height());
     draw_border(cr,(LMRect){0,0,game_width(),game_height()},0xffffffffu,0xff808080u);
-    draw_border(cr,(LMRect){7,7,game_width()-14,46},0xff808080u,0xffffffffu);
-    lm_graphics_fill_rect(cr,(LMRect){10,10,game_width()-20,40},0xffc0c0c0u);
+    /* Raise the upper inner bevel by 2 px to match the WinXP frame spacing. */
+    draw_border(cr,(LMRect){7,5,game_width()-14,46},0xff808080u,0xffffffffu);
+    lm_graphics_fill_rect(cr,(LMRect){10,8,game_width()-20,40},0xffc0c0c0u);
     draw_border(cr,(LMRect){GRID_X+5,TOP_LED_Y-1,LED_W*3+2,LED_H+2},0xff808080u,0xffffffffu);
     draw_border(cr,(LMRect){game_width()-12-LED_W*3-2,TOP_LED_Y-1,LED_W*3+2,LED_H+2},0xff808080u,0xffffffffu);
     lm_graphics_draw_sprite(cr,LM_SHEET_BUTTON,face,(game_width()-BUTTON_W)/2,TOP_LED_Y,BUTTON_W,BUTTON_H);
