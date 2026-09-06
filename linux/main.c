@@ -115,7 +115,17 @@ static void toggle_mark(int x,int y)
     else if(c->state==1){c->state=0;flags--;}else if(c->state==0){c->state=1;flags++;}
 }
 
-static void draw_border(cairo_t*cr,LMRect r,unsigned int a,unsigned int b){lm_graphics_draw_rect(cr,r,a);if(r.width>2&&r.height>2)lm_graphics_draw_rect(cr,(LMRect){r.x+1,r.y+1,r.width-2,r.height-2},b);}
+/* Classic Windows 3D bevel: each edge is exactly 2 px thick. */
+static void draw_border(cairo_t*cr,LMRect r,unsigned int a,unsigned int b)
+{
+    const int t=2;
+    /* Top and left edge. */
+    lm_graphics_fill_rect(cr,(LMRect){r.x,r.y,r.width,t},a);
+    lm_graphics_fill_rect(cr,(LMRect){r.x,r.y,t,r.height},a);
+    /* Bottom and right edge. */
+    lm_graphics_fill_rect(cr,(LMRect){r.x,r.y+r.height-t,r.width,t},b);
+    lm_graphics_fill_rect(cr,(LMRect){r.x+r.width-t,r.y,t,r.height},b);
+}
 static void draw_leds(cairo_t*cr,int x,int value){int h,t,o;value%=1000;if(value<0)value=-value;h=value/100;t=(value/10)%10;o=value%10;lm_graphics_draw_sprite(cr,LM_SHEET_LED,led_sprite_for_digit(h),x,TOP_LED_Y,LED_W,LED_H);lm_graphics_draw_sprite(cr,LM_SHEET_LED,led_sprite_for_digit(t),x+LED_W,TOP_LED_Y,LED_W,LED_H);lm_graphics_draw_sprite(cr,LM_SHEET_LED,led_sprite_for_digit(o),x+LED_W*2,TOP_LED_Y,LED_W,LED_H);}
 
 static gboolean on_draw(GtkWidget*w,cairo_t*cr,gpointer data)
